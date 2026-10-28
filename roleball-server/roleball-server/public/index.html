@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;700&display=swap">
 <!--RB_SERVER-->
 <style>
-/* RoleBall · Ulica 27: noćni beton, neon roze i cijan */
+/* RoleBall · Ulica: noćni beton, neon roze i cijan */
 :root{--bg:#0b0d17;--panel:#151829;--panel2:#1d2140;--text:#eef1ff;--muted:#a3a9c9;--line:rgba(255,255,255,.12);--pink:#ff3d6e;--cyan:#2de2ff;--accent:#ffb547;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Rubik,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
@@ -69,6 +69,14 @@ body.touch .keys{display:none}body.touch #roleInfo table{display:none}
 kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--text);font-size:12px}
 .hidden{display:none!important}
 #endBox h2{margin:0 0 10px;font-size:28px}
+#endStats{margin:0 0 14px;font-size:14px;text-align:left}
+.stRow{display:flex;justify-content:space-between;align-items:center;margin:6px 0}.stRow span{color:var(--mut,#c9cde6);font-size:13px}
+.stBar{display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px;margin-bottom:8px}.stBar i{display:block;height:100%}
+.stMvp{margin:12px 0 8px;padding:8px 10px;border-radius:10px;background:rgba(255,181,71,.12);border:1px solid rgba(255,181,71,.4);color:#ffb547;font-weight:700;text-align:center}
+.stMvp small{color:#c9cde6;font-weight:400}
+.stTab{width:100%;border-collapse:collapse;font-size:13px}.stTab th{font-weight:500;color:#c9cde6;text-align:center;padding:2px 4px}.stTab td{padding:3px 4px;text-align:center}
+.stTab td:first-child{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.stLeg{font-size:11px;color:#8a8fb0;margin-top:6px;text-align:center}
 .online{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .online h3,#lobby h2{margin:0 0 10px;font-size:18px}
 #lbList{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:14px}
@@ -159,6 +167,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 <div class="overlay hidden" id="endScreen">
   <div class="card" id="endBox" style="width:min(420px,100%);text-align:center">
     <h2 id="endTitle"></h2><p class="sub" id="endScore"></p>
+    <div id="endStats"></div>
     <button class="go" id="btnAgain">Dalje</button>
   </div>
 </div>
@@ -185,7 +194,7 @@ const CHG_FR=40, GREEN=.35, MINI=1.8, FULL=6.2, POWER=8.6, TM_PASS=3.6;
 const DRIB_W=0.045;
 // ================= MAPE (fizika + izgled) =================
 const MAPS={
- ulica:{name:'Ulica 27',desc:'beton · standardna fizika',ballDamp:.99,tauMul:1,vmaxMul:1,wallB:.5,
+ ulica:{name:'Ulica',desc:'beton · standardna fizika',ballDamp:.99,tauMul:1,vmaxMul:1,wallB:.5,
    outer:'#10122a',ground:'#1c1f33',band:'rgba(255,255,255,0.025)',line:'#7cf1ff',glow:'rgba(45,226,255,0.75)',bright:false},
  plaza:{name:'Plaža',desc:'pesak · lopta brže staje, sporije ubrzavanje',ballDamp:.982,tauMul:1.2,vmaxMul:.95,wallB:.35,
    outer:'#b8935a',ground:'#e4c68f',band:'rgba(140,95,40,0.08)',line:'#ffffff',glow:'rgba(255,255,255,0.6)',bright:true},
@@ -198,63 +207,72 @@ const TEAMC=['#ff3d6e','#2de2ff'],TEAMTXT=['#ffffff','#04222b']; // brzina okret
 // ================= ULOGE =================
 // vrednost može biti broj ili funkcija (zona, igrač)
 const ROLES={
- GKS:{name:'GK Shot-stopper',tag:'GK',line:'GK',spd:.92,str:1.3,size:z=>z.ownBox?15.5:14,
-      skill:'Powershot',sd:'sledeći udarac u roku od 3 s je powershot (8.6), za jako izbijanje',cd:360,cost:15,col:'#ffffff',mana:'najsporiji'},
- GKW:{name:'GK Sweeper',tag:'GK',line:'GK',spd:z=>z.ownBox?1.10:.95,sht:1.15,size:13,
-      skill:'Dash',sd:'dug dash, bilo gde na svojoj polovini',cd:150,cost:20,col:'#ffffff',mana:'sporiji van 16m'},
- CB:{name:'CB Stoper',tag:'CB',line:'DEF',spd:.9,acc:.9,str:2.2,size:14.5,agr:1.5,
+ GKS:{name:'GK Shot-stopper',tag:'GK',line:'GK',reach:5,acc:0.95,sht:1.1,drb:0.8,spd:.92,str:1.3,size:z=>z.ownBox?15.5:14,
+      skill:'Powershot',sd:'samo u svom 16m: sledeći udarac u roku od 3 s je powershot (8.6), za jako izbijanje; važi samo dok je u svom 16m',cd:360,cost:15,col:'#ffffff',mana:'najsporiji'},
+ GKW:{name:'GK Sweeper',tag:'GK',line:'GK',agr:1.1,reach:4.5,str:1.1,acc:1.05,drb:0.8,spd:z=>z.ownBox?1.10:.95,sht:1.1,size:13.5,
+      skill:'Bacanje',sd:'samo u svom 16m: baci se ~70 px u smeru kretanja, 0,3 s je 25% veći (lakše dohvati loptu), zatim 0,6 s leži: 70% sporiji i ne može da šutne',cd:150,cost:20,col:'#ffffff',mana:'sporiji van 16m'},
+ CB:{name:'CB Stoper',tag:'CB',line:'DEF',reach:4.5,sht:0.95,drb:0.8,spd:.9,acc:.9,str:2.2,size:15,agr:1.5,
       skill:'Guranje',sd:'iskorak na najbližeg protivnika (do ~95 px) i jak udarac ramenom: gurne ga sa lopte i 0,7 s ga uspori',cd:480,cost:15,col:'#ff9f43',mana:'spor, sporo ubrzava'},
- DB:{name:'FB Fullback',tag:'FB',line:'DEF',spd:z=>z.ownHalf?1.08:1,str:1.5,sht:.9,agr:1.3,
+ LIB:{name:'CB Libero',tag:'LIB',line:'DEF',sht:1,drb:0.8,spd:.95,acc:.95,str:1.6,size:14.5,agr:1.2,
+      skill:'Pasivno',sd:'na svojoj četvrtini terena svaki udarac mu je powershot (jako izbijanje i dugi pasovi; nema skill na E)',cd:0,cost:0,col:'#ffd166',mana:'slabiji u duelu od Stopera, van svoje četvrtine običan udarac'},
+ DB:{name:'FB Fullback',tag:'FB',line:'DEF',acc:1.03,drb:1.1,spd:z=>z.ownHalf?1.08:1.03,str:1.3,sht:0.95,agr:1.2,
       skill:'Sprint',sd:'1,5 s SPD +30% i ACC +50%, samo na svojoj polovini',cd:420,cost:20,col:'#ff6b6b',mana:'slabiji udarac'},
- DMF:{name:'DMF Destroyer',tag:'DMF',line:'MF',spd:z=>z.ownHalf?1.08:1,str:1.7,sht:.9,agr:2,
+ DMF:{name:'DMF Destroyer',tag:'DMF',line:'MF',acc:1.05,drb:0.85,str:1.5,sht:0.9,agr:2,
       skill:'Lepljenje',sd:'iskorak na najbližeg protivnika (do ~95 px); pri kontaktu se zalepi za njega 2 s: protivnik je 50% sporiji i ne može da se odvoji',cd:600,cost:20,col:'#ee5253',mana:'slabiji udarac'},
- DEEP:{name:'CMF Orchestrator',tag:'CMF',line:'MF',spd:.95,reach:7,
+ DEEP:{name:'CMF Orchestrator',tag:'CMF',line:'MF',agr:0.8,str:0.95,acc:0.95,sht:1,drb:1.2,spd:.95,reach:7,
       skill:'Bar',sd:'jedini puni udarac: klik = kratak pas, duže = jače, zeleno = powershot (nema skill na E)',cd:0,cost:0,col:'#a29bfe',mana:'sporiji'},
- B2B:{name:'CMF Box-to-box',tag:'B2B',line:'MF',spd:1.05,acc:1.08,
+ B2B:{name:'CMF Box-to-box',tag:'B2B',line:'MF',agr:1.2,str:1.08,sht:1.05,drb:1.1,spd:1.05,acc:1.08,
       skill:'Condition',sd:'kondicija odmah na 100',cd:1500,cost:0,col:'#4cc38a',mana:'nema specijalnost'},
- HOLE:{name:'SS Shadow striker',tag:'SS',line:'FW',spd:z=>z.oppBox?1.15:1,str:.85,sht:1.1,
+ HOLE:{name:'SS Shadow striker',tag:'SS',line:'FW',agr:0.9,size:13.5,acc:1.05,drb:1.1,spd:z=>z.oppBox?1.15:1,str:0.9,sht:1.1,
       skill:'Dash',sd:'kratak dash, samo na protivničkoj polovini',cd:480,cost:15,col:'#feca57',mana:'slabiji u duelu'},
- PM:{name:'AMF Playmaker',tag:'PM',line:'MF',spd:.95,drb:1.5,reach:8,agr:.8,
-      skill:'Close dribbling',sd:'2 s lopta klizi po ivici ka smeru kretanja (DRB ×2)',cd:480,cost:10,col:'#c8a2ff',mana:'sporiji'},
- WING:{name:'Wing',tag:'W',line:'FW',spd:z=>z.oppHalf?1.1:1,acc:z=>z.oppHalf?1.1:1,str:.75,agr:.8,
+ PM:{name:'AMF Playmaker',tag:'PM',line:'MF',size:13.5,str:0.9,acc:1.05,sht:1.05,spd:.95,drb:1.5,reach:7,agr:.8,
+      skill:'Close dribbling',sd:'samo kad ima loptu: 3 s lopta klizi po ivici ka smeru kretanja (DRB ×2)',cd:480,cost:10,col:'#c8a2ff',mana:'sporiji'},
+ WING:{name:'Wing',tag:'W',line:'FW',size:13.5,sht:1,drb:1.4,spd:z=>z.oppHalf?1.1:1,acc:z=>z.oppHalf?1.1:1,str:.75,agr:.8,
       skill:'Sprint',sd:'1,5 s SPD +30% i ACC +50%',cd:420,cost:20,col:'#00d2d3',mana:'najslabiji u duelu'},
- ADV:{name:'ST Advanced striker',tag:'ST',line:'FW',spd:(z,p)=>z.oppHalf?1.05+.15*p.mom:1,str:.9,
-      skill:'Nameštanje šuta',sd:'3 s na protivničkoj polovini: strelice pomeraju loptu po tvojoj ivici umesto tebe, samo na strani ka golu (±90°), pa šutneš',cd:480,cost:15,col:'#ff9ff3',mana:'zalet se resetuje na okret'},
- ANC:{name:'DMF Anchor',tag:'ANC',line:'MF',spd:.95,acc:.95,str:1.4,size:14.5,reach:5,agr:1.3,
+ ADV:{name:'ST Advanced striker',tag:'ST',line:'FW',sht:1.15,drb:1.3,spd:(z,p)=>z.oppHalf?1.05+.15*p.mom:1,str:1,
+      skill:'Eksplozija',sd:'samo na protivničkoj polovini: trzaj napred, 1 s ACC +50% i zalet odmah na 100% (brzina 1.20); okret ga i dalje resetuje',cd:480,cost:15,col:'#ff9ff3',mana:'zalet se resetuje na okret'},
+ ANC:{name:'DMF Anchor',tag:'ANC',line:'MF',sht:0.95,drb:0.9,spd:.95,acc:.95,str:1.6,size:14.5,reach:4.3,agr:1.3,
       skill:'Presecanje',sd:'2 s domet raste na 16: dohvata pasove koji prolaze pored njega i lopta mu se zaustavlja uz nogu',cd:480,cost:15,col:'#54a0ff',mana:'sporiji, sporije ubrzava'},
- POA:{name:'ST Poacher',tag:'POA',line:'FW',acc:1.05,str:.85,sht:1.05,reach:z=>z.oppBox?9:4,agr:.9,
+ POA:{name:'ST Poacher',tag:'POA',line:'FW',size:13.5,spd:.97,drb:1.1,acc:1.08,str:.85,sht:1.05,reach:z=>z.oppBox?9:4,agr:.9,
       skill:'Pasivno',sd:'u poslednjoj četvrtini terena svaki udarac mu je powershot (nema skill na E)',cd:0,cost:0,col:'#ff793f',mana:'slabiji u duelu, van 16m običan'},
- TM:{name:'ST Target man',tag:'TM',line:'FW',spd:.88,acc:.85,str:(z,p)=>1.4+p.build,drb:1.3,
+ TM:{name:'ST Target man',tag:'TM',line:'FW',agr:1.3,reach:4.2,size:15,sht:1.1,spd:.88,acc:.85,str:(z,p)=>1.4+p.build,drb:1.1,
       skill:'Pasivno',sd:'Ball protect: na protivničkoj polovini, dok ga protivnik gura, jačina mu raste od 1.4 do 2.4 za 1,5 s (nema skill na E). Pas: udarac unazad (ka svom golu) je kontrolisan kratak pas, drži Space za jači (do 3.6), pusti za pas',cd:0,cost:0,col:'#f368e0',mana:'spor, sporo ubrzava'}
 };
 const DEF={spd:1,acc:1,str:1,size:14,sht:1,drb:1,reach:4,agr:1};
-const ORDER=['GKS','GKW','CB','DB','DMF','ANC','DEEP','B2B','HOLE','PM','WING','ADV','POA','TM'];
-const ZONE_TXT={GKS:{size:'14 (15.5 u svom 16m)'},GKW:{spd:'1.10 u 16m / 0.95'},AB:{spd:'1.08 PP',sht:'1.15 PP'},DB:{spd:'1.08 SP'},
-  DMF:{spd:'1.08 SP'},HOLE:{spd:'1.15 P16'},WING:{spd:'1.10 PP',acc:'1.10 PP'},ADV:{spd:'1.05→1.20 PP'},TM:{str:'1.4→2.4 PP'},POA:{reach:'9 P16'}};
+const ORDER=['GKS','GKW','CB','LIB','DB','DMF','ANC','DEEP','B2B','HOLE','PM','WING','ADV','POA','TM'];
+const ZONE_TXT={GKS:{size:'14 (15.5 u svom 16m)'},GKW:{spd:'1.10 u 16m / 0.95'},AB:{spd:'1.08 PP',sht:'1.15 PP'},DB:{spd:'1.08 SP / 1.03'},
+  HOLE:{spd:'1.15 P16'},WING:{spd:'1.10 PP',acc:'1.10 PP'},ADV:{spd:'1.05→1.20 PP'},TM:{str:'1.4→2.4 PP'},POA:{reach:'9 P16'}};
 const FORM={1:['B2B'],2:['CB','ADV'],3:['GKS','DMF','ADV'],4:['GKS','CB','PM','ADV'],5:['GKS','CB','DMF','WING','TM'],
  6:['GKS','CB','DB','DMF','PM','POA'],7:['GKS','CB','DB','DB','DMF','WING','ADV'],8:['GKS','CB','DB','DB','DMF','DEEP','WING','TM'],
- 9:['GKW','CB','CB','DB','DB','ANC','PM','WING','ADV'],10:['GKS','CB','CB','DB','DB','DMF','B2B','HOLE','WING','ADV'],
- 11:['GKS','CB','CB','DB','DB','ANC','DEEP','B2B','PM','WING','POA']};
-const HOME={ANC:[-.22,0],POA:[.3,0],GKS:[-.47,0],GKW:[-.45,0],CB:[-.34,0],DB:[-.29,.3],AB:[-.2,.38],DMF:[-.19,0],DEEP:[-.12,0],B2B:[-.04,0],
+ 9:['GKW','CB','LIB','DB','DB','ANC','PM','WING','ADV'],10:['GKS','CB','LIB','DB','DB','DMF','B2B','HOLE','WING','ADV'],
+ 11:['GKS','CB','LIB','DB','DB','ANC','DEEP','B2B','PM','WING','POA']};
+const HOME={ANC:[-.22,0],POA:[.3,0],GKS:[-.47,0],GKW:[-.45,0],CB:[-.34,0],LIB:[-.34,0],DB:[-.29,.3],AB:[-.2,.38],DMF:[-.19,0],DEEP:[-.12,0],B2B:[-.04,0],
  HOLE:[.12,0],PM:[.05,0],WING:[.16,.38],ADV:[.24,0],TM:[.27,0]};
 
 // ================= STANJE =================
 let W,H,G,BD,BH,CR,N,useAut;
 let players=[],ball,posts=[],score=[0,0],frame=0,timeLimit,goalLimit,golden=false;
 let lastToucher=null,prevToucher=null,touchHist=[],goalInfo=null,lastPostFr=-99,chance=null;
+let koFr=0,koK=null,penPick=null;
+// kapiten tima: za sada prvi igrač koji nije bot. Kasnije: najveći level, pa divizija u rankedu, pa ocena (1-10) sa prošlog meča
+function captainOf(team){return players.find(p=>p.team===team&&(p.human||p.isHuman))||null;}
+function holdLimit(){return(W<=1080?5:W<=1560?8:W<=1960?11:14)*60;} // vreme za prelazak pola: 3v3 5 s, do 6v6 8 s, do 9v9 11 s, veće 14 s
+let flip=1,half=1,halfPending=false,endKind='end',hold={team:-1,fr:0};
+function dirOf(t){return(t===0?1:-1)*flip;} // smer napada tima (+1 = desno)
+let cdFr=0,ending=null,endFr=0,MS={poss:[0,0],shots:[0,0]};
 let state='menu',pauseFr=0,kickoffLock=false,kickoffTeam=0,setPiece=null,lastTouch=-1,paused=false,human=null,msg='',msgFr=0;
 
 function fieldFor(n){
-  if(n<=3) return [960,450,220];
-  if(n<=6) return [1400,620,250];
-  if(n<=9) return [1760,800,270];
-  return [2080,940,300];
+  if(n<=3) return [1080,500,220]; // teren ~12% veći (dužina i širina), golovi isti
+  if(n<=6) return [1560,700,250];
+  if(n<=9) return [1960,900,270];
+  return [2320,1050,300];
 }
 function matchFor(n){ if(n<=3)return[3,3]; if(n<=6)return[5,5]; if(n<=9)return[7,7]; return[10,10]; }
 
 function makePlayer(team,role,isHuman){
   return {inDir:{x:0,y:0},dribbling:false,team,role,human:isHuman,ctrl:isHuman?'local':'bot',isHuman,owner:isHuman?'host':null,name:'',lastSk:0,x:0,y:0,vx:0,vy:0,r:PR,im:.5,damp:.96,kickHeld:false,kickUsed:false,charging:false,charge:0,
-    stamina:100,cd:0,fx:{},mom:0,hd:{x:1,y:0},build:0,noCont:99,aggSlow:1,slowNext:1,dashing:0,tackleHit:false,s:{...DEF},z:{},hx:0,hy:0,ai:{aimY:0},contact:false};
+    stamina:100,cd:0,fx:{},mom:0,hd:{x:1,y:0},build:0,noCont:99,aggSlow:1,slowNext:1,dashing:0,tackleHit:false,st:{g:0,a:0,sh:0,sv:0,tk:0},s:{...DEF},z:{},hx:0,hy:0,ai:{aimY:0},contact:false};
 }
 function buildTeams(n,myRole){
   players=[];
@@ -278,6 +296,7 @@ function buildTeams(n,myRole){
       cnt[r]=(cnt[r]||0)+1;
       if(hy!==0){hy*=wideSide;wideSide*=-1;}
       else if(roles.filter(x=>x===r).length>1) hy=(cnt[r]===1?-.18:.18);
+      else if((r==='CB'||r==='LIB')&&roles.includes(r==='CB'?'LIB':'CB')) hy=r==='CB'?-.18:.18; // par štopera
       p.hx=hx;p.hy=hy;players.push(p);
     });
   }
@@ -289,21 +308,24 @@ function setupField(){
   [W,H,G]=fieldFor(N);BD=W*.15;BH=Math.min(H*.62,G*2.4);CR=Math.max(60,W*.075);
   posts=[];for(const sx of[-1,1])for(const sy of[-1,1])posts.push({x:sx*W/2,y:sy*G/2,r:POST_R,im:0,vx:0,vy:0});
 }
-function homePos(p){const s=p.team===0?1:-1;return{x:s*p.hx*W,y:p.hy*H};}
+function homePos(p){const s=dirOf(p.team);return{x:s*p.hx*W,y:p.hy*H};}
 function kickoff(team){
   lastToucher=prevToucher=null;touchHist=[];goalInfo=null;chance=null;
-  kickoffTeam=team;kickoffLock=true;setPiece=null;
+  kickoffTeam=team;kickoffLock=true;setPiece=null;cdFr=180;hold={team:-1,fr:0};
   ball={x:0,y:0,vx:0,vy:0,r:BR,im:1};
   for(const p of players){
-    const h=homePos(p);const s=p.team===0?-1:1;
+    const h=homePos(p);const s=-dirOf(p.team);
     p.x=h.x;p.y=h.y;p.vx=p.vy=0;p.charging=false;p.charge=0;p.kickUsed=false;p.mom=0;p.build=0;p.dashing=0;p.fx={};
     // svi na svojoj polovini
     if(s*p.x<CR+p.r+20 && p.team!==team) { p.x=s*(CR+p.r+25); }
     if(s*p.x<p.r+30) p.x=s*(p.r+30);
   }
   // izvođač centra: najistureniji igrač tima koji nije golman
-  const k=players.filter(p=>p.team===team&&ROLES[p.role].line!=='GK').sort((a,b)=>Math.abs(a.x)-Math.abs(b.x))[0];
-  if(k){const s=k.team===0?-1:1;k.x=s*(k.r+BR+6);k.y=0;}
+  const pool=players.filter(p=>p.team===team&&ROLES[p.role].line!=='GK');
+  const k=pool.find(p=>p.human)||pool.find(p=>p.isHuman)||pool.sort((a,b)=>Math.abs(a.x)-Math.abs(b.x))[0]; // čovek izvodi ako je u timu
+  koK=k||null;koFr=0;penPick=null;
+  for(const p of pool)if(p!==k){const d=hyp(p.x,p.y),m=CR+p.r+4;if(d<m){const s=-dirOf(team),n=norm(p.x||s,p.y);p.x=n.x*m;p.y=n.y*m;}}
+  if(k){const s=-dirOf(k.team);k.x=s*(k.r+BR+6);k.y=0;}
 }
 
 // ================= ULAZ =================
@@ -331,9 +353,9 @@ const hyp=Math.hypot;
 function norm(x,y){const l=hyp(x,y)||1;return{x:x/l,y:y/l};}
 function val(v,z,p){return typeof v==='function'?v(z,p):v;}
 function zones(p){
-  const fx=p.team===0?p.x:-p.x; // pozitivno = ka protivničkom golu
+  const fx=dirOf(p.team)*p.x; // pozitivno = ka protivničkom golu
   const inY=Math.abs(p.y)<BH/2;
-  return{ownHalf:fx<0,oppHalf:fx>=0,lastQ:fx>W/4,ownBox:fx<-W/2+BD&&inY,oppBox:fx>W/2-BD&&inY};
+  return{ownHalf:fx<0,oppHalf:fx>=0,lastQ:fx>W/4,ownQ:fx<-W/4,ownBox:fx<-W/2+BD&&inY,oppBox:fx>W/2-BD&&inY};
 }
 function stats(p){
   const R=ROLES[p.role],z=zones(p);p.z=z;
@@ -358,8 +380,9 @@ function stats(p){
 }
 function ballDist(p){return hyp(ball.x-p.x,ball.y-p.y)-p.r-BR;}
 function touched(p){
-  if(lastToucher!==p){prevToucher=lastToucher;lastToucher=p;touchHist.unshift(p);if(touchHist.length>5)touchHist.pop();}
-  lastTouch=p.team;
+  if(lastToucher!==p){prevToucher=lastToucher;lastToucher=p;if(p.st)p.st.tk++;touchHist.unshift(p);if(touchHist.length>5)touchHist.pop();}
+  lastTouch=p.team;if(ending!==null&&p.team!==ending)endFr=1e9;
+  if(hold.team>=0&&p.team!==hold.team)hold.fr=0; // svaki dodir protivnika resetuje vreme za prelazak pola (i kad se obojica bore za loptu) // protivnik dotakao loptu u poslednjoj akciji
   if(kickoffLock&&p.team===kickoffTeam)kickoffLock=false;
   if(setPiece&&setPiece.team===p.team)setPiece=null;
 }
@@ -382,10 +405,10 @@ function useSkill(p,inp){
   let d=(inp.dx||inp.dy)?norm(inp.dx,inp.dy):norm(ball.x-p.x,ball.y-p.y);
   let ok=true;
   switch(p.role){
-    case'GKS':p.fx.pshot=180;p.fx.ring=14;break;
-    case'GKW':
-      if(!z.ownHalf){ok=false;break;}
-      p.vx+=d.x*5;p.vy+=d.y*5;p.dashing=30;p.fx.ring=14;break;
+    case'GKS':if(!z.ownBox){ok=false;break;}p.fx.pshot=180;p.fx.ring=14;break;
+    case'GKW': // bacanje golmana
+      if(!z.ownBox){ok=false;break;}
+      p.vx+=d.x*3.5;p.vy+=d.y*3.5;p.dashing=18;p.fx.dive=18;p.fx.down=54;p.fx.ring=14;break;
     case'CB':{let tg=null,best=1e9;for(const q of opponents(p)){const d=hyp(q.x-p.x,q.y-p.y),sc=d+ballDist(q)*.5;if(d<95&&sc<best){best=sc;tg=q;}}
       if(!tg){ok=false;break;}const n=norm(tg.x-p.x,tg.y-p.y);p.vx+=n.x*3.5;p.vy+=n.y*3.5;p.fx.shove=35;p.fx.ring=12;break;}
     case'AB':if(!z.oppHalf){ok=false;break;}p.fx.prekl=90;break;
@@ -395,12 +418,12 @@ function useSkill(p,inp){
     case'DEEP':ok=false;break;
     case'B2B':p.stamina=100;p.fx.ring=14;break;
     case'HOLE':if(!z.oppHalf){ok=false;break;}p.vx+=d.x*4;p.vy+=d.y*4;p.fx.ring=14;break;
-    case'PM':p.fx.bctl=120;break;
+    case'PM':if(!canTouch(p)||ballDist(p)>p.s.reach+2){ok=false;break;}p.fx.bctl=180;break; // samo kad ima loptu
     case'WING':p.fx.sprint=90;break;
-    case'ADV':if(!z.oppHalf||ballDist(p)>p.s.reach+4){ok=false;break;}p.fx.aim=180;break;
+    case'ADV':if(!z.oppHalf){ok=false;break;}p.mom=1;p.ai.far=0;p.hd=d;p.vx+=d.x*2;p.vy+=d.y*2;p.fx.explo=60;p.fx.ring=14;break;
     case'TM':ok=false;break;
     case'ANC':p.fx.intercept=120;break;
-    case'POA':ok=false;break;
+    case'POA':case'LIB':ok=false;break;
   }
   if(ok){p.cd=R.cd;p.stamina-=R.cost;p.fx.glow=30;}
   return ok;
@@ -429,7 +452,7 @@ function laneClear(a,b,team){
   return true;
 }
 function bestMate(p){
-  const dir=p.team===0?1:-1;let best=null,bs=-1e9;
+  const dir=dirOf(p.team);let best=null,bs=-1e9;
   for(const m of players){if(m===p||m.team!==p.team||ROLES[m.role].line==='GK')continue;
     const d=hyp(m.x-ball.x,m.y-ball.y);if(d<70||d>W*.55)continue;
     const adv=dir*(m.x-p.x);if(adv<-40)continue;
@@ -440,7 +463,7 @@ function bestMate(p){
   return best;
 }
 function attack(p,inp,forceClear){
-  const dir=p.team===0?1:-1;const oppGoal={x:dir*W/2,y:0};
+  const dir=dirOf(p.team);const oppGoal={x:dir*W/2,y:0};
   const near=ballDist(p);
   if(p.fx.aim>0){const gt={x:oppGoal.x,y:p.ai.aimY||0},gd=norm(gt.x-p.x,gt.y-p.y),bn=norm(ball.x-p.x,ball.y-p.y);
     inp.dx=gd.x;inp.dy=gd.y;if(bn.x*gd.x+bn.y*gd.y>.97)inp.kick=!p.kickUsed;return;}
@@ -483,8 +506,8 @@ function botSkill(p,inp){
   const mine=near<10;const on=nearestOppDist(p);let use=false;
   switch(p.role){
     case'GKS':use=near<30&&z.ownBox;break;
-    case'GKW':{const dir=p.team===0?-1:1;
-      if(z.ownHalf&&dir*ball.vx>1.8&&hyp(ball.x-p.x,ball.y-p.y)<120){const t=norm(ball.x+ball.vx*8-p.x,ball.y+ball.vy*8-p.y);inp.dx=t.x;inp.dy=t.y;use=true;}break;}
+    case'GKW':{const dir=-dirOf(p.team);
+      if(z.ownBox&&dir*ball.vx>1.8&&hyp(ball.x-p.x,ball.y-p.y)<90){const t=norm(ball.x+ball.vx*8-p.x,ball.y+ball.vy*8-p.y);inp.dx=t.x;inp.dy=t.y;use=true;}break;}
     case'CB':use=opponents(p).some(q=>ballDist(q)<10&&hyp(q.x-p.x,q.y-p.y)<85);break;
     case'DB':use=z.ownHalf&&(p.ai.mode==='run'&&near>60||near<10&&nearestOppDist(p)<60);break;
     case'DMF':use=opponents(p).some(q=>ballDist(q)<10&&hyp(q.x-p.x,q.y-p.y)<85);break;
@@ -493,10 +516,10 @@ function botSkill(p,inp){
     case'HOLE':use=z.oppHalf&&p.ai.mode==='run'&&near>40&&near<160;break;
     case'PM':use=mine&&on<55;break;
     case'WING':use=(mine&&z.oppHalf)||(p.ai.mode==='run'&&near>80&&near<250);break;
-    case'ADV':use=z.oppHalf&&near<6&&hyp(ball.x-(p.team===0?W/2:-W/2),ball.y)<W*.4;break;
+    case'ADV':use=z.oppHalf&&p.mom<.3&&near<12;break;
     case'TM':use=false;break;
     case'ANC':use=oppB&&near<120&&near>10;break;
-    case'POA':use=false;break;
+    case'POA':case'LIB':use=false;break;
     case'AB':use=z.oppHalf&&p.ai.mode==='run';break;
   }
   if(use)inp.skill=true;
@@ -504,7 +527,7 @@ function botSkill(p,inp){
 function botInput(p,chaser){const inp=botInput0(p,chaser);if(p.kickLock)inp.kick=false;return inp;}
 function botInput0(p,chaser){
   const inp={dx:0,dy:0,kick:false,skill:false};
-  const dir=p.team===0?1:-1;const R=ROLES[p.role];const h=homePos(p);
+  const dir=dirOf(p.team);const R=ROLES[p.role];const h=homePos(p);
   if(pauseFr>0)return inp;
   if(setPiece&&setPiece.team!==p.team){
     steer(p,{x:h.x+ball.x*.35,y:h.y+ball.y*.3},inp);return inp;}
@@ -516,7 +539,7 @@ function botInput0(p,chaser){
     else steer(p,{x:gx+dir*Math.max(0,(BD*.4)*(1-Math.abs(ball.x-(-dir*W/2))/(W*.6))),y:Math.max(-G/2+8,Math.min(G/2-8,ball.y*.6))},inp,2);
     botSkill(p,inp);return inp;
   }
-  if(chaser===p&&!(kickoffLock&&p.team!==kickoffTeam)){attack(p,inp,false);botSkill(p,inp);return inp;}
+  if(chaser===p&&!(kickoffLock&&p.team!==kickoffTeam)){attack(p,inp,hold.team===p.team&&hold.fr>240&&dir*ball.x<0);botSkill(p,inp);return inp;}
   let t;
   const ownHalfBall=dir*ball.x<0;
   if(R.line==='DEF'&&ownHalfBall){const og={x:-dir*W/2,y:0};
@@ -564,44 +587,57 @@ function wallSegs(){return[[-W/2,-H/2,W/2,-H/2],[-W/2,H/2,W/2,H/2],
   [-W/2,-H/2,-W/2,-G/2],[-W/2,G/2,-W/2,H/2],[W/2,-H/2,W/2,-G/2],[W/2,G/2,W/2,H/2]];}
 
 function step(){
+  if(penPick&&state==='play'){penPickStep();return;}
+  if(cdFr>0&&!(pauseFr>0)&&state==='play'){ // odbrojavanje 3-2-1 pre početnog udarca: sve stoji
+    if(cdFr%60===0)sfx('beep');cdFr--;
+    if(cdFr===0){sfx('whistle');msg='KRENI!';msgFr=45;}
+    return;}
   frame++;
-  if(pauseFr>0){pauseFr--;if(pauseFr===0){if(state==='over')return;kickoff(kickoffTeam);sfx('whistle');}
+  if(pauseFr>0){pauseFr--;if(pauseFr===0){if(state==='over')return;
+      if(halfPending){halfPending=false;half=2;flip=-1;for(const q of players){q.stamina=100;q.cd=0;}kickoffTeam=1;}
+      kickoff(kickoffTeam);}
     // golovi: samo klizanje
     for(const p of players){p.x+=p.vx;p.y+=p.vy;p.vx*=.94;p.vy*=.94;}ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=.97;ball.vy*=.97;
     for(const s of netSegs())segCol(ball,...s,NET_B);
     return;}
   if(msgFr>0)msgFr--;
+  if(lastTouch>=0&&!kickoffLock&&!setPiece)MS.poss[lastTouch]++;
   // statovi i ulaz
   for(const p of players){p.aggSlow=p.slowNext;p.slowNext=1;stats(p);}
   const ch=[pickChaser(0),pickChaser(1)];
   for(const p of players){
-    const inp=p.ctrl==='remote'?remoteInput(p):p.human?humanInput():botInput(p,ch[p.team]);
+    let inp=p.ctrl==='remote'?remoteInput(p):p.human?humanInput():botInput(p,ch[p.team]);
     const s=p.s;
     // fx tajmeri
     for(const k in p.fx){if(p.fx[k]>0)p.fx[k]--;}
     if(p.cd>0)p.cd--;
     if(p.fx.tackle===0&&p.fx.hasOwnProperty('tackle')){delete p.fx.tackle;if(!p.tackleHit)p.fx.tackleSlow=60;}
     if(inp.skill)useSkill(p,inp);
+    const gkDown=p.fx.down>0&&!(p.fx.dive>0); // golman leži posle bacanja
+    if(gkDown&&inp.kick)inp={...inp,kick:false};
     // kretanje (HaxBall model: v=(v+a·dir)·damp)
     let d=(inp.dx||inp.dy)?norm(inp.dx,inp.dy):{x:0,y:0};
     if(p.fx.aim>0){p.aimIn=d;d={x:0,y:0};} // nameštanje šuta: strelice pomeraju loptu, ne igrača
     let vmax=BASE_VMAX*s.spd*MAP.vmaxMul;
+    // vođenje lopte: do −8% brzine dok je lopta u dometu; što bolji Dribbling, manje usporenje (DRB ≥ 1.75 bez usporenja)
+    if(ballDist(p)<=s.reach+2&&canTouch(p))vmax*=1-.08*Math.max(0,1.75-s.drb)/.75;
     if((p.charging&&!p.fx.passCtl)||(p.kickHeld&&p.role!=='DEEP'))vmax*=CHARGE_SLOW;
+    if(gkDown){vmax*=.3;p.vx*=.85;p.vy*=.85;}
     const tau=BASE_TAU*MAP.tauMul/s.acc,damp=1-1/tau,a=vmax*(1-damp)/damp;
     p.vx+=d.x*a;p.vy+=d.y*a;p.damp=damp;p.inDir=d;p.dribbling=false;
     p.im=.5/s.str;
-    p.r+=(PR*s.size/14-p.r)*.15;
+    if(p.fx.dive>0)p.r=PR*s.size*1.25/14;else p.r+=(PR*s.size/14-p.r)*.15;
     // udarac (drži Space, kao HaxBall)
     const bd=ballDist(p);
     if(p.role==='TM'){ // Target man: napred instant udarac, unazad (ka svom golu) kontrolisan kratak pas sa punjenjem
-      const og=norm((p.team===0?-W/2:W/2)-p.x,-p.y),bn=norm(ball.x-p.x,ball.y-p.y),back=bn.x*og.x+bn.y*og.y>0;
+      const og=norm(-dirOf(p.team)*W/2-p.x,-p.y),bn=norm(ball.x-p.x,ball.y-p.y),back=bn.x*og.x+bn.y*og.y>0;
       if(inp.kick){p.kickHeld=true;
         if(!p.kickUsed){p.charging=true;p.charge=Math.min(1,p.charge+1/CHG_FR);
           if(!back&&bd<s.reach&&canTouch(p)){kickBall(p,FULL*s.sht);p.kickUsed=true;p.charging=false;p.charge=0;}}}
       else{if(p.charging&&!p.kickUsed&&back&&bd<s.reach&&canTouch(p))kickBall(p,(MINI+(TM_PASS-MINI)*p.charge)*s.sht);
         p.kickHeld=false;p.kickUsed=false;p.charging=false;p.charge=0;}
     } else if(p.role!=='DEEP'){ // svi osim Orchestratora: HaxBall instant udarac (drži Space, šutne čim lopta dodirne obod)
-      if(inp.kick){p.kickHeld=true;if(!p.kickUsed&&bd<s.reach&&canTouch(p)){const ps=p.fx.pshot>0||(p.role==='POA'&&p.z.lastQ);kickBall(p,(ps?POWER:FULL)*s.sht);p.fx.aim=0;if(ps){p.fx.pshot=0;p.fx.first=0;p.fx.power=18;}p.kickUsed=true;}}
+      if(inp.kick){p.kickHeld=true;if(!p.kickUsed&&bd<s.reach&&canTouch(p)){const ps=(p.fx.pshot>0&&p.z.ownBox)||(p.role==='POA'&&p.z.lastQ)||(p.role==='LIB'&&p.z.ownQ);kickBall(p,(ps?POWER:FULL)*s.sht);p.fx.aim=0;if(ps){p.fx.pshot=0;p.fx.first=0;p.fx.power=18;}p.kickUsed=true;}}
       else{p.kickHeld=false;p.kickUsed=false;}
     } else {
     if(!inp.kick)p.kickLock=false;
@@ -620,7 +656,7 @@ function step(){
       const n=norm(ball.x-p.x,ball.y-p.y);ball.vx+=(n.x+v.x)*2.6;ball.vy+=(n.y+v.y)*2.6;touched(p);p.tackleHit=true;}
     // kondicija
     const f=hyp(p.vx,p.vy)/BASE_VMAX;const b2b=p.role==='B2B';
-    if(f>.8)p.stamina-=.04*(b2b?.6:1);
+    if(f>.8)p.stamina-=.04*(b2b?.85:1);
     else p.stamina+=(f<.4?.09:.025)*(b2b?1.5:1)*(ROLES[p.role].line==='GK'&&p.z.ownBox?2:1);
     p.stamina=Math.max(0,Math.min(100,p.stamina));
     // zalet (Advanced striker)
@@ -631,7 +667,8 @@ function step(){
   }
   // integracija
   if(setPiece){ball.x=setPiece.x;ball.y=setPiece.y;ball.vx=ball.vy=0;setPiece.t++;
-    if(setPiece.t>300){setPiece.team=1-setPiece.team;setPiece.t=0;flash('Isteklo vreme, lopta ide protivniku');}}
+    if(setPiece.pen&&setPiece.t>300){const gs=setPiece.gs;setPiece={team:1-setPiece.team,x:gs*(W/2-BD*.5),y:0,t:0};ball.x=setPiece.x;ball.y=0;flash('Penal nije izveden za 5 s, gol-aut');}
+    else if(!setPiece.pen&&setPiece.t>300){setPiece.team=1-setPiece.team;setPiece.t=0;flash('Isteklo vreme, lopta ide protivniku');}}
   for(const p of players){p.x+=p.vx;p.y+=p.vy;p.vx*=p.damp;p.vy*=p.damp;}
   // lopta u pod-koracima, da brz šut ne prođe kroz zid, stativu ili mrežu
   {const n=Math.max(1,Math.ceil(hyp(ball.vx,ball.vy)/(BR*.6)));
@@ -672,7 +709,7 @@ function step(){
   for(const p of players){if(!(p.fx.aim>0))continue;
     if(!canTouch(p)||ballDist(p)>p.s.reach+6||players.some(q=>q.team!==p.team&&ballDist(q)<p.s.reach*.6)){p.fx.aim=0;continue;}
     const wrap=a=>{while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a;},H2=Math.PI/2;
-    const g=Math.atan2(-p.y,(p.team===0?1:-1)*W/2-p.x);
+    const g=Math.atan2(-p.y,dirOf(p.team)*W/2-p.x);
     let rel=Math.max(-H2,Math.min(H2,wrap(Math.atan2(ball.y-p.y,ball.x-p.x)-g)));
     if(p.aimIn&&(p.aimIn.x||p.aimIn.y)){const t=wrap(Math.atan2(p.aimIn.y,p.aimIn.x)-g);if(Math.abs(t)<=H2+.05)rel+=Math.max(-.1,Math.min(.1,Math.max(-H2,Math.min(H2,t))-rel));}
     const th=g+rel,rad=p.r+BR+.5;ball.x=p.x+Math.cos(th)*rad;ball.y=p.y+Math.sin(th)*rad;ball.vx=p.vx;ball.vy=p.vy;touched(p);p.aimG=g;}
@@ -706,34 +743,42 @@ function step(){
     const mx=W/2+MARGIN-p.r,my=H/2+MARGIN-p.r;
     if(p.x<-mx){p.x=-mx;p.vx=0;}if(p.x>mx){p.x=mx;p.vx=0;}if(p.y<-my){p.y=-my;p.vy=0;}if(p.y>my){p.y=my;p.vy=0;}
     if(p.dashing>0){p.dashing--;if(p.role==='GKW'){ // dash ne prelazi centar
-      if(p.team===0&&p.x>-p.r){p.x=-p.r;p.vx=0;}if(p.team===1&&p.x<p.r){p.x=p.r;p.vx=0;}}}
-    if(kickoffLock){const s=p.team===0?-1:1;
+      const sd=dirOf(p.team);if(sd*p.x>-p.r){p.x=-sd*p.r;p.vx=0;}}}
+    if(kickoffLock){const s=-dirOf(p.team);
+      if(p.team===kickoffTeam&&p!==koK){const d=hyp(p.x,p.y),m=CR+p.r;if(d<m){const n=norm(p.x||s,p.y);p.x=n.x*m;p.y=n.y*m;}} // u krugu je samo izvođač
       if(s*p.x<0){ // tuđa polovina: izvođački tim sme samo unutar centralnog kruga (pas unazad)
         const cr=CR-p.r,d=hyp(p.x,p.y);
         if(!(p.team===kickoffTeam&&d<=cr)){
           if(p.team===kickoffTeam&&Math.abs(p.y)<cr&&d>0&&(d-cr)<Math.abs(p.x)){const n=norm(p.x,p.y);p.x=n.x*cr;p.y=n.y*cr;}
           else{p.x=0;p.vx=0;}}}
       if(p.team!==kickoffTeam){const d=hyp(p.x,p.y),m=CR+p.r;if(d<m){const n=norm(p.x||s,p.y);p.x=n.x*m;p.y=n.y*m;}}}
+    if(setPiece&&setPiece.pen){const gs=setPiece.gs;
+      if(p===setPiece.k){const gx=W/2-p.r-4;if(gs*p.x<gx){p.x=gs*gx;p.vx=0;}if(Math.abs(p.y)>G/2-p.r){p.y=Math.sign(p.y)*(G/2-p.r);p.vy=0;}}
+      else if(p!==setPiece.kk&&gs*p.x>W/2-BD-p.r&&Math.abs(p.y)<BH/2+p.r){p.x=gs*(W/2-BD-p.r);p.vx=0;}}
     // Target man gradnja
     if(p.role==='TM'){if(p.z.oppHalf&&p.contact){p.build=Math.min(1,p.build+1/90);p.noCont=0;}
       else{p.noCont++;if(p.noCont>30||!p.z.oppHalf)p.build=0;}}
   }
   // šansa: lopta brzo ide ka golu i prolazi kroz okvir; ako ne uđe, publika reaguje
   if(Math.abs(ball.vx)>3.2){const sd=Math.sign(ball.vx),gx=sd*W/2,tt=(gx-ball.x)/ball.vx;
-    if(tt>0&&tt<55&&Math.abs(gx-ball.x)<W*.35&&Math.abs(ball.y+ball.vy*tt)<G/2+25&&!chance)chance={sd,f:frame};}
-  if(chance&&frame-chance.f>4&&(Math.sign(ball.vx)!==chance.sd||Math.abs(ball.vx)<1.2)){sfx('ooh');chance=null;}
+    if(tt>0&&tt<55&&Math.abs(gx-ball.x)<W*.35&&Math.abs(ball.y+ball.vy*tt)<G/2+25&&!chance){chance={sd,f:frame,at:sd===dirOf(0)?0:1};
+      if(lastToucher&&lastToucher.team===chance.at){MS.shots[chance.at]++;lastToucher.st.sh++;chance.sh=1;}}}
+  if(chance&&frame-chance.f>4&&(Math.sign(ball.vx)!==chance.sd||Math.abs(ball.vx)<1.2)){sfx('ooh');
+    if(lastToucher&&lastToucher.team!==chance.at)lastToucher.st.sv++; // odbrana
+    chance=null;}
   if(chance&&frame-chance.f>150)chance=null;
   // gol
   if(Math.abs(ball.y)<G/2&&Math.abs(ball.x)>W/2+BR*.2){
-    const scorer=ball.x>0?0:1;score[scorer]++;
+    const scorer=Math.sign(ball.x)===dirOf(0)?0:1;score[scorer]++;
     // strelac = poslednji koji je dodirnuo loptu; asistent = saigrač koji je dodirnuo pre njega
     // strelac: poslednji igrač tima koji je dao gol (odbitak od protivnika se ne računa); autogol samo ako ga niko iz tog tima nije dirao
     const si=touchHist.findIndex(q=>q.team===scorer);let gs='',a='';
-    if(si>=0){const sc=touchHist[si],nx=touchHist[si+1];gs=pname(sc);if(nx&&nx.team===scorer&&nx!==sc)a=pname(nx);}
+    if(si>=0){const sc=touchHist[si],nx=touchHist[si+1];gs=pname(sc);sc.st.g++;if(!(chance&&chance.sh)){sc.st.sh++;MS.shots[scorer]++;}if(nx&&nx.team===scorer&&nx!==sc){a=pname(nx);nx.st.a++;}}
     else if(touchHist[0])gs=pname(touchHist[0])+' (autogol)';
     goalInfo={s:gs,a,t:scorer};chance=null;
     sfx('goal',scorer);spawnConfetti(scorer);
     if(score[scorer]>=goalLimit||golden){endMatch();}
+    else if(ending!==null){const k=endKind;ending=null;if(k==='half')halfPending=true;else if(score[0]===score[1]){golden=true;flash('Nerešeno, ZLATNI GOL!');}else endMatch();}
     pauseFr=180;kickoffTeam=1-scorer;updateHud();return;}
   // aut
   if(useAut&&!setPiece){
@@ -741,18 +786,58 @@ function step(){
     if(outY||outX){
       const last=lastTouch<0?0:lastTouch;let team=1-last,x,y;
       if(outY&&!outX){x=Math.max(-W/2+BR,Math.min(W/2-BR,ball.x));y=Math.sign(ball.y)*(H/2-BR);flash('Aut');}
-      else{const side=Math.sign(ball.x);const defTeam=side<0?0:1;
+      else{const side=Math.sign(ball.x);const defTeam=side===-dirOf(0)?0:1;
         if(last===defTeam){team=1-defTeam;x=side*(W/2-BR);y=Math.sign(ball.y)*(H/2-BR);flash('Korner');}
         else{team=defTeam;x=side*(W/2-BD*.5);y=0;flash('Gol-aut');}}
       setPiece={team,x,y,t:0};ball.x=x;ball.y=y;ball.vx=ball.vy=0;
       for(const p of players){p.charging=false;p.charge=0;}
     }
   }
+  // pravilo 7 s: tim mora da prenese loptu preko pola; dodir protivnika resetuje; istek = penal za protivnika
+  if(kickoffLock&&ending===null&&!setPiece){if(++koFr>=180){kickoffLock=false;givePenalty(1-kickoffTeam,'Početni udarac nije izveden za 3 s');return;}}
+  if(setPiece||kickoffLock||ending!==null||lastTouch<0)hold.fr=0;
+  else{if(hold.team!==lastTouch){hold.team=lastTouch;hold.fr=0;}
+    if(dirOf(lastTouch)*ball.x<0){if(++hold.fr>=holdLimit()){givePenalty(1-lastTouch,'Lopta nije preneta preko pola za '+holdLimit()/60+' s');return;}}else hold.fr=0;}
   // vreme
   if(!golden&&frame%60===0)updateHud();
-  if(frame>=timeLimit*60&&!golden){
-    if(score[0]===score[1]){golden=true;flash('Nerešeno, ZLATNI GOL!');updateHud();}else endMatch();}
+  if(state!=='play')return;
+  if(ending!==null){ // poslednja akcija: kraj čim protivnik dotakne loptu, lopta izađe ili posle 15 s
+    endFr++;if(lastTouch!==ending||setPiece||kickoffLock||endFr>900){ending=null;if(endKind==='half')startHalftime();else endMatch();}}
+  else if(half===1&&frame>=timeLimit*30&&!golden){
+    endKind='half';if(lastTouch<0||setPiece||kickoffLock)startHalftime();else{ending=lastTouch;endFr=0;flash('Poslednja akcija poluvremena!');}}
+  else if(frame>=timeLimit*60&&!golden){
+    endKind='end';
+    if(score[0]===score[1]){golden=true;flash('Nerešeno, ZLATNI GOL!');updateHud();}
+    else if(lastTouch<0||setPiece||kickoffLock)endMatch();
+    else{ending=lastTouch;endFr=0;flash('Poslednja akcija!');}}
 }
+function givePenalty(team,why){
+  const d=1-team,gs=-dirOf(d),sd=BD,sx=gs*(W/2-sd); // penal sa ivice šesnaesterca
+  setPiece={team,x:sx,y:0,t:0,pen:true,gs};ball.x=sx;ball.y=0;ball.vx=ball.vy=0;hold={team:-1,fr:0};chance=null;
+  const defs=players.filter(q=>q.team===d),atk=players.filter(q=>q.team===team);
+  const k=defs.find(q=>ROLES[q.role].line==='GK')||defs.sort((a,b)=>hyp(a.x-gs*W/2,a.y)-hyp(b.x-gs*W/2,b.y))[0];
+  const kk=atk.filter(q=>ROLES[q.role].line!=='GK').sort((a,b)=>hyp(a.x-sx,a.y)-hyp(b.x-sx,b.y))[0]||atk[0];
+  setPiece.k=k;setPiece.kk=kk;
+  for(const q of players){q.vx=q.vy=0;q.charging=false;q.charge=0;q.dashing=0;
+    if(q===k){q.x=gs*(W/2-q.r-4);q.y=0;}
+    else if(q===kk){q.x=sx-gs*(q.r+BR+22);q.y=0;}
+    else if(gs*q.x>W/2-BD-q.r-60||Math.abs(q.x-sx)<90&&Math.abs(q.y)<90){q.x=gs*(W/2-BD-q.r-70);if(Math.abs(q.y)<40)q.y=(q.y>=0?1:-1)*(40+Math.random()*60);}}
+  sfx('whistle');flash('PENAL! '+(why||''));
+  const cap=captainOf(team);
+  if(cap){const list=atk.slice().sort((a,b)=>hyp(a.x-sx,a.y)-hyp(b.x-sx,b.y));
+    penPick={team,cap,list,idx:Math.max(0,list.indexOf(kk)),fr:0,pk:true,ps:false};cdFr=0;}
+  else cdFr=180;
+}
+function penSetKicker(q){const sp=setPiece,old=sp.kk;if(!old||q===old)return;
+  const ox=old.x,oy=old.y;old.x=q.x;old.y=q.y;q.x=ox;q.y=oy;sp.kk=q;q.vx=q.vy=old.vx=old.vy=0;}
+function penPickStep(){ // kapiten bira izvođača penala: skill = sledeći igrač, šut = potvrdi (najviše 5 s)
+  const pp=penPick,c=pp.cap;pp.fr++;
+  const inp=c.ctrl==='remote'?remoteInput(c):c.human?humanInput():{kick:false,skill:false};
+  if(inp.skill){pp.idx=(pp.idx+1)%pp.list.length;penSetKicker(pp.list[pp.idx]);}
+  const kd=!!inp.kick&&!pp.pk;pp.pk=!!inp.kick;
+  if(kd||pp.fr>=300||!setPiece||!setPiece.pen){penPick=null;cdFr=180;if(setPiece)flash('Penal izvodi: '+pname(setPiece.kk));}
+}
+function startHalftime(){half=1.5;halfPending=true;pauseFr=150;goalInfo=null;setPiece=null;sfx('final');msg='POLUVREME · menjaju se strane';msgFr=150;}
 function flash(t){msg=t;msgFr=110;}
 
 // ================= CRTANJE =================
@@ -769,7 +854,7 @@ function drawField(){
   if(M===MAPS.ulica){ // grafit na zidu iza terena
     ctx.save();ctx.font='34px "Russo One",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,61,110,0.35)';ctx.strokeText('ROLEBALL',-W/4,-H/2-MARGIN/2);
-    ctx.fillStyle='rgba(45,226,255,0.25)';ctx.font='22px "Russo One",sans-serif';ctx.fillText('ULICA 27',W/4,-H/2-MARGIN/2);ctx.restore();}
+    ctx.fillStyle='rgba(45,226,255,0.25)';ctx.font='22px "Russo One",sans-serif';ctx.fillText('ULICA',W/4,-H/2-MARGIN/2);ctx.restore();}
   ctx.fillStyle=M.ground;rr(-W/2,-H/2,W,H,10);ctx.fill();
   ctx.fillStyle=M.band;for(let i=0;i<12;i+=2)ctx.fillRect(-W/2+i*W/12,-H/2,W/12,H);
   // linije
@@ -777,8 +862,9 @@ function drawField(){
   rr(-W/2,-H/2,W,H,10);ctx.stroke();
   ctx.beginPath();ctx.moveTo(0,-H/2);ctx.lineTo(0,H/2);ctx.stroke();
   ctx.beginPath();ctx.arc(0,0,CR,0,7);ctx.stroke();
-  ctx.strokeStyle=TEAMC[0];glowOn('rgba(255,61,110,0.7)',10);ctx.strokeRect(-W/2,-BH/2,BD,BH);
-  ctx.strokeStyle=TEAMC[1];glowOn('rgba(45,226,255,0.7)',10);ctx.strokeRect(W/2-BD,-BH/2,BD,BH);
+  const lt=flip>0?0:1; // tim koji brani levi gol
+  ctx.strokeStyle=TEAMC[lt];glowOn(lt?'rgba(45,226,255,0.7)':'rgba(255,61,110,0.7)',10);ctx.strokeRect(-W/2,-BH/2,BD,BH);
+  ctx.strokeStyle=TEAMC[1-lt];glowOn(lt?'rgba(255,61,110,0.7)':'rgba(45,226,255,0.7)',10);ctx.strokeRect(W/2-BD,-BH/2,BD,BH);
   ctx.restore();
   ctx.setLineDash([8,10]);ctx.strokeStyle=M.bright?'rgba(0,0,0,.15)':'rgba(255,255,255,.12)';ctx.lineWidth=2;
   for(const x of[-W/4,W/4]){ctx.beginPath();ctx.moveTo(x,-H/2);ctx.lineTo(x,H/2);ctx.stroke();}
@@ -795,7 +881,7 @@ function drawPlayers(){
   const dark=MAP.bright;
   for(const p of players){
     const R=ROLES[p.role];
-    const active=['intercept','first','shove','stagger','sprint','fbs','mark','glue','glued','pshot','aim','post','prekl','protect','presing','bctl','cut','explo','passCtl','tackle'].some(k=>p.fx[k]>0)||p.fx.glow>0;
+    const active=['intercept','first','shove','stagger','sprint','fbs','mark','glue','glued','pshot','aim','post','prekl','protect','presing','bctl','cut','explo','passCtl','tackle','dive','down'].some(k=>p.fx[k]>0)||p.fx.glow>0;
     if(p.fx.glue>0&&p.glueT){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.glueT.x,p.glueT.y);ctx.strokeStyle='rgba(238,82,83,.9)';ctx.lineWidth=4;ctx.stroke();}
     if(p.fx.aim>0&&p.aimG!==undefined){ctx.beginPath();ctx.arc(p.x,p.y,p.r+BR*2+6,p.aimG-Math.PI/2,p.aimG+Math.PI/2);ctx.strokeStyle='rgba(255,159,243,.85)';ctx.lineWidth=3;ctx.stroke();}
     // trag pri brzini (sprint, dash, zalet)
@@ -861,7 +947,7 @@ function draw(){
   const minSc=(TOUCH?10.5:12)*DPR/PR; // igrač nikad sitniji od ~10 px
   const sc=playing?Math.max(fit,minSc):fit;
   view.follow=sc>fit*1.02;
-  if(view.follow){const f=human;let tx=ball.x,ty=ball.y;if(f){tx=f.x+(ball.x-f.x)*.35;ty=f.y+(ball.y-f.y)*.35;}
+  if(view.follow){const f=human;let tx=ball.x,ty=ball.y;if(f&&!(setPiece&&setPiece.pen)){tx=f.x+(ball.x-f.x)*.35;ty=f.y+(ball.y-f.y)*.35;} // kod penala kamera gleda loptu
     cam.x+=(tx-cam.x)*.14;cam.y+=(ty-cam.y)*.14;
     const hw=cw/sc/2,hh=ah/sc/2,mx=Math.max(0,fw/2-hw),my=Math.max(0,fh/2-hh);
     cam.x=Math.max(-mx,Math.min(mx,cam.x));cam.y=Math.max(-my,Math.min(my,cam.y));
@@ -869,9 +955,30 @@ function draw(){
   else{cam.x=0;cam.y=0;}
   ctx.setTransform(sc,0,0,sc,cw/2-cam.x*sc,top+ah/2-cam.y*sc);
   drawField();drawPlayers();drawBall();
+  if(penPick){const kk=penPick.kk||(setPiece&&setPiece.kk);if(kk){ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle='#ffb547';ctx.lineWidth=2.5;ctx.shadowColor='#ffb547';ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(kk.x,kk.y,kk.r+7+Math.sin(performance.now()/150)*1.5,0,7);ctx.stroke();ctx.restore();}}
+  let tmr=null; // odbrojavanje iznad lopte: prelazak pola, početni udarac, penal
+  if(state==='play'&&!(cdFr>0)&&!(pauseFr>0)&&!penPick){
+    if(kickoffLock&&!setPiece)tmr={sec:Math.ceil((180-koFr)/60),t:kickoffTeam};
+    else if(setPiece&&setPiece.pen)tmr={sec:Math.ceil((300-(setPiece.t||0))/60),t:setPiece.team};
+    else if(!setPiece&&hold.team>=0&&hold.fr>holdLimit()-240)tmr={sec:Math.ceil((holdLimit()-hold.fr)/60),t:hold.team};}
+  if(tmr&&tmr.sec>0){const sec=tmr.sec;
+    ctx.save();ctx.font='bold 18px "Russo One",sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillStyle=sec<=2?'#ffb547':TEAMC[tmr.t];ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=10;ctx.fillText(sec+'s',ball.x,ball.y-BR-6);ctx.restore();}
   ctx.setTransform(1,0,0,1,0,0);
   if(view.follow&&playing&&(view.x1-view.x0)<W*.85)drawMinimap(top);
   drawCelebration(cw,chh);
+  if(penPick&&state==='play'){const me=penPick.cap&&(penPick.cap.human),kk=penPick.kk||(setPiece&&setPiece.kk);
+    const l1='Kapiten '+(penPick.cap?pname(penPick.cap):'')+' bira ko šutira penal',l2=me?(TOUCH?'Skill = sledeći igrač · Šut = potvrdi':'E = sledeći igrač · Space = potvrdi'):'Izvođač: '+(kk?pname(kk):'');
+    const l3=me&&kk?'Izvođač: '+pname(kk)+' · '+Math.ceil((300-penPick.fr)/60)+' s':'';
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=(17*DPR)+'px "Russo One",sans-serif';
+    const w=Math.max(ctx.measureText(l1).width,ctx.measureText(l2).width,ctx.measureText(l3).width)+36*DPR,hh=(l3?92:68)*DPR,y0=chh*.62;
+    ctx.fillStyle='rgba(11,13,23,.85)';rr(cw/2-w/2,y0,w,hh,12*DPR);ctx.fill();
+    ctx.fillStyle='#ffb547';ctx.fillText(l1,cw/2,y0+20*DPR);ctx.fillStyle='#ffffff';ctx.font=(14*DPR)+'px Rubik,sans-serif';ctx.fillText(l2,cw/2,y0+44*DPR);
+    if(l3){ctx.fillStyle='#c9cde6';ctx.fillText(l3,cw/2,y0+68*DPR);}ctx.restore();}
+  if(cdFr>0&&state==='play'&&!(pauseFr>0)){const n=Math.ceil(cdFr/60),ph=(cdFr%60)/60;
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=(70+40*ph)*DPR+'px "Russo One",sans-serif';
+    ctx.globalAlpha=.35+.65*ph;ctx.fillStyle=n===1?'#ffb547':'#ffffff';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=24*DPR;ctx.fillText(String(n),cw/2,chh*.6);ctx.restore();}
   if((msgFr>0&&!(pauseFr>0&&goalInfo))||paused){ctx.font=(26*DPR)+'px "Russo One",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     const t=paused?'PAUZA':msg;const w=ctx.measureText(t).width;
     ctx.fillStyle='rgba(11,13,23,.8)';rr(cw/2-w/2-18*DPR,chh*.3-26*DPR,w+36*DPR,52*DPR,12*DPR);ctx.fill();
@@ -913,17 +1020,38 @@ function showMenu(){state='menu';$('menu').classList.remove('hidden');$('hudTop'
 function startMatch(){
   N=+$('selN').value;useAut=N>3&&$('selWalls').value==='aut';MAP=MAPS[$('selMap').value]||MAPS.ulica;goFull();
   setupField();buildTeams(N,$('selRole').value);
-  [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;paused=false;lastTouch=-1;pauseFr=0;
-  kickoff(0);state='play';sfx('whistle');
+  [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;paused=false;lastTouch=-1;pauseFr=0;ending=null;endFr=0;MS={poss:[0,0],shots:[0,0]};flip=1;half=1;halfPending=false;endKind='end';
+  kickoff(0);state='play';
   $('menu').classList.add('hidden');$('endScreen').classList.add('hidden');$('hudTop').classList.remove('hidden');$('hudBot').classList.remove('hidden');
   updateHud();flash(MAP.name+' · '+N+' v '+N);
 }
-function endMatch(){
-  state='over';playSfx('final');if(ONL.mode==='host')netBroadcast({t:'end',sc:score});setTimeout(()=>{
+function matchSummary(){
+  const pt=MS.poss[0]+MS.poss[1],p0=pt?Math.round(100*MS.poss[0]/pt):50;
+  const win=score[0]>score[1]?0:score[1]>score[0]?1:-1;
+  const rows=players.map(p=>({n:pname(p),r:(p.name||p.human)?ROLES[p.role].tag:'',t:p.team,g:p.st.g,a:p.st.a,sh:p.st.sh,sv:p.st.sv,
+    v:p.st.g*3+p.st.a*2+p.st.sv*1.2+p.st.sh*.5+p.st.tk*.03+(p.team===win?1:0)})).sort((a,b)=>b.v-a.v);
+  return{poss:[p0,100-p0],shots:MS.shots.slice(),mvp:rows[0]||null,rows:rows.filter(r=>r.g||r.a||r.sv||r.sh).slice(0,6)};
+}
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function renderStats(su){
+  if(!su){$('endStats').innerHTML='';return;}
+  const tc=t=>'<span style="color:'+TEAMC[t]+'">';
+  let h='<div class="stRow"><b>'+tc(0)+su.poss[0]+'%</span></b><span>Posed lopte</span><b>'+tc(1)+su.poss[1]+'%</span></b></div>'+
+    '<div class="stBar"><i style="width:'+su.poss[0]+'%;background:'+TEAMC[0]+'"></i><i style="width:'+su.poss[1]+'%;background:'+TEAMC[1]+'"></i></div>'+
+    '<div class="stRow"><b>'+tc(0)+su.shots[0]+'</span></b><span>Šutevi</span><b>'+tc(1)+su.shots[1]+'</span></b></div>';
+  if(su.mvp)h+='<div class="stMvp">★ Igrač utakmice: '+tc(su.mvp.t)+esc(su.mvp.n)+'</span> <small>'+esc(su.mvp.r)+'</small></div>';
+  if(su.rows.length){h+='<table class="stTab"><tr><th></th><th>G</th><th>A</th><th>Š</th><th>O</th></tr>';
+    for(const r of su.rows)h+='<tr><td>'+tc(r.t)+'●</span> '+esc(r.n)+'</td><td>'+r.g+'</td><td>'+r.a+'</td><td>'+r.sh+'</td><td>'+r.sv+'</td></tr>';
+    h+='</table><div class="stLeg">G golovi · A asistencije · Š šutevi · O odbrane</div>';}
+  $('endStats').innerHTML=h;
+}
+function endMatch(su){
+  if(state==='over'&&!su)return;
+  state='over';ending=null;playSfx('final');su=su||matchSummary();if(ONL.mode==='host')netBroadcast({t:'end',sc:score,su});setTimeout(()=>{
     const mt=human?human.team:0;
     $('endTitle').textContent=score[mt]>score[1-mt]?'Pobeda!':score[mt]<score[1-mt]?'Poraz':'Nerešeno';
     $('endScore').textContent='Roze '+score[0]+' : '+score[1]+' Cijan';
-    $('endScreen').classList.remove('hidden');},1500);
+    renderStats(su);$('endScreen').classList.remove('hidden');},1500);
 }
 $('btnStart').onclick=()=>{ONL.mode=null;startMatch();};$('btnAgain').onclick=()=>{$('endScreen').classList.add('hidden');if(ONL.mode)backToLobby();else showMenu();};
 fillMenu();
@@ -1051,6 +1179,7 @@ function buildFromRoster(roster){
       p.owner=r.owner;p.name=r.name;p.isHuman=!!r.owner;p.ctrl=!r.owner?'bot':(r.owner===ONL.myId?'local':'remote');p.human=p.ctrl==='local';
       let [hx,hy]=HOME[r.role];cnt[r.role]=(cnt[r.role]||0)+1;
       if(hy!==0){hy*=wideSide;wideSide*=-1;}else if(rs.filter(x=>x.role===r.role).length>1)hy=(cnt[r.role]===1?-.18:.18);
+      else if((r.role==='CB'||r.role==='LIB')&&rs.some(x=>x.role===(r.role==='CB'?'LIB':'CB')))hy=r.role==='CB'?-.18:.18;
       p.hx=hx;p.hy=hy;players.push(p);
     }
   }
@@ -1065,8 +1194,8 @@ function startOnline(){ // samo domaćin
 function voteWinner(){const c={};for(const x of ONL.lobby)c[x.vote||'ulica']=(c[x.vote||'ulica']||0)+1;let best='ulica',bv=-1;for(const k of MAP_ORDER)if((c[k]||0)>bv){bv=c[k]||0;best=k;}return best;}
 function beginMatch(cfg,roster){
   N=cfg.N;useAut=cfg.aut;MAP=MAPS[cfg.map]||MAPS.ulica;setupField();buildFromRoster(roster);
-  [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;paused=false;lastTouch=-1;pauseFr=0;
-  kickoff(0);state='play';if(ONL.mode!=='client')sfx('whistle');
+  [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;paused=false;lastTouch=-1;pauseFr=0;ending=null;endFr=0;MS={poss:[0,0],shots:[0,0]};flip=1;half=1;halfPending=false;endKind='end';
+  kickoff(0);state='play';
   for(const id of['menu','lobby','endScreen'])$(id).classList.add('hidden');
   $('hudTop').classList.remove('hidden');$('hudBot').classList.remove('hidden');
   $('hint').textContent=ONL.mode==='client'?'Esc izlaz iz sobe':ONL.mode==='host'?'P pauza · Esc zatvara sobu':'P pauza · Esc meni';
@@ -1077,14 +1206,14 @@ function backToLobby(){state='lobby';$('hudTop').classList.add('hidden');$('hudB
 // stanje meča: domaćin šalje 30 puta u sekundi
 const r2=v=>Math.round(v*100)/100;
 function fxOut(fx){const o={};for(const k in fx)if(fx[k]>0)o[k]=fx[k];return o;}
-function snap(){return{t:'s',ev:EVQ.splice(0),gi:pauseFr>0?goalInfo:null,f:frame,sc:score,g:golden?1:0,k:kickoffLock?1:0,kt:kickoffTeam,sp:setPiece?[setPiece.x,setPiece.y,setPiece.team]:0,
+function snap(){return{t:'s',cd:cdFr,ev:EVQ.splice(0),gi:pauseFr>0?goalInfo:null,f:frame,sc:score,g:golden?1:0,k:kickoffLock?1:0,kt:kickoffTeam,sp:setPiece?[setPiece.x,setPiece.y,setPiece.team,setPiece.pen?1:0]:0,fl:flip,hd:[hold.team,hold.fr],ko:koFr,spt:setPiece?setPiece.t:0,pp:penPick?[players.indexOf(penPick.cap),players.indexOf(setPiece&&setPiece.kk),penPick.fr]:0,
   m:msgFr>0?msg:'',mf:msgFr,pf:pauseFr,pa:paused?1:0,b:[r2(ball.x),r2(ball.y),r2(ball.vx),r2(ball.vy)],
   p:players.map(p=>[r2(p.x),r2(p.y),r2(p.vx),r2(p.vy),r2(p.r),Math.round(p.stamina),r2(p.charge),p.charging?1:0,p.kickHeld?1:0,p.cd,r2(p.mom),r2(p.build),fxOut(p.fx),p.aimG===undefined?null:r2(p.aimG),p.glueT?players.indexOf(p.glueT):-1,p.dribbling?1:0])};}
 function clientRecv(d){
   if(d.t==='lobby'){ONL.lobby=d.list;ONL.cfg=d.cfg;if(state!=='play')renderLobby();}
   else if(d.t==='start'){beginMatch(d.cfg,d.roster);}
   else if(d.t==='s'&&state==='play'){
-    frame=d.f;score=d.sc;golden=!!d.g;kickoffLock=!!d.k;kickoffTeam=d.kt;setPiece=d.sp?{x:d.sp[0],y:d.sp[1],team:d.sp[2]}:null;
+    frame=d.f;cdFr=d.cd||0;score=d.sc;golden=!!d.g;kickoffLock=!!d.k;kickoffTeam=d.kt;setPiece=d.sp?{x:d.sp[0],y:d.sp[1],team:d.sp[2],pen:!!d.sp[3]}:null;flip=d.fl||1;if(d.hd)hold={team:d.hd[0],fr:d.hd[1]};koFr=d.ko||0;if(setPiece)setPiece.t=d.spt||0;penPick=d.pp?{cap:players[d.pp[0]],kk:players[d.pp[1]],fr:d.pp[2]}:null;
     msg=d.m||msg;msgFr=d.mf;pauseFr=d.pf;paused=!!d.pa;goalInfo=d.gi||null;
     if(d.ev)for(const [n,v] of d.ev){playSfx(n,v);if(n==='goal')spawnConfetti(v);}
     ball.bx=d.b[0];ball.by=d.b[1];ball.vx=d.b[2];ball.vy=d.b[3];
@@ -1092,7 +1221,7 @@ function clientRecv(d){
       p.bx=a[0];p.by=a[1];p.vx=a[2];p.vy=a[3];p.r=a[4];p.stamina=a[5];p.charge=a[6];p.charging=!!a[7];p.kickHeld=!!a[8];p.cd=a[9];p.mom=a[10];p.build=a[11];p.fx=a[12];
       p.aimG=a[13]===null?undefined:a[13];p.glueT=a[14]>=0?players[a[14]]:null;p.dribbling=!!a[15];});
     ONL.recvAt=performance.now();updateHud();}
-  else if(d.t==='end'){score=d.sc;endMatch();}
+  else if(d.t==='end'){score=d.sc;state='play';endMatch(d.su||{poss:[50,50],shots:[0,0],mvp:null,rows:[]});}
   else if(d.t==='tolobby'){$('endScreen').classList.add('hidden');backToLobby();}
   else if(d.t==='info'){$('lbInfo').textContent=d.m;}
   else if(d.t==='bye'){leaveRoom(true);netStatus('Domaćin je zatvorio sobu.',true);}
@@ -1193,6 +1322,7 @@ function noiseBurst(t,dur,peak,freq,q){const c=SND.ctx,n=Math.floor(c.sampleRate
 function playSfx(n,v){
   if(!SND.on||!SND.ctx)return;const c=SND.ctx;if(c.state==='suspended')c.resume();const t=c.currentTime;v=v||1;
   try{switch(n){
+    case'beep':osc('sine',880,null,t,.14,.22);break;
     case'kick':osc('sine',170,55,t,.12,.55*v);noiseBurst(t,.05,.12*v,2500,.7);break;
     case'power':osc('sine',200,45,t,.2,.8*v);osc('triangle',90,40,t,.25,.35*v);noiseBurst(t,.09,.25*v,1800,.6);break;
     case'post':osc('square',880,700,t,.08,.12);osc('sine',1320,1100,t,.15,.08);break;
@@ -1273,7 +1403,7 @@ let acc=0,last=performance.now();
 function loop(now){
   acc+=Math.min(100,now-last);last=now;
   while(acc>=1000/60){acc-=1000/60;
-    if(ONL.mode!=='client'&&((state==='play'&&!paused)||(state==='over'&&pauseFr>0))){step();if(ONL.mode==='host'&&frame%2===0)netBroadcast(snap());}}
+    if(ONL.mode!=='client'&&((state==='play'&&!paused)||(state==='over'&&pauseFr>0))){step();if(ONL.mode==='host'&&(ONL.tick=(ONL.tick||0)+1)%2===0)netBroadcast(snap());}}
   if(ONL.mode==='client'&&state==='play'){clientSendInput(now);clientExtrapolate(now);}
   syncPlayUI();if(SND.ctx&&(++audioTick)%30===0)syncAudio();draw();if(state==='play')updateBotHud();
   requestAnimationFrame(loop);
