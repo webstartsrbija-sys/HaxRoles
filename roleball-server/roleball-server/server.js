@@ -15,6 +15,8 @@ const STATIC = {
   '/apple-touch-icon.png': ['icon-192.png', 'image/png'],
   '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
 };
+// zvuci publike (public/sfx)
+for (const n of ['amb', 'cheer', 'ooh', 'hey', 'net']) STATIC['/sfx/' + n + '.mp3'] = ['sfx/' + n + '.mp3', 'audio/mpeg'];
 // stranica dobija oznaku da radi preko servera (online uključen) i PWA linkove
 const SERVER_HEAD = '<script>window.RB_SERVER=1</script>\n<link rel="manifest" href="/manifest.webmanifest">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n<script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));</script>';
 
