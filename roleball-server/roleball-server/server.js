@@ -30,11 +30,14 @@ const server = http.createServer((req, res) => {
     });
   } else if (STATIC[url]) {
     const [file, type] = STATIC[url];
-    fs.readFile(path.join(__dirname, 'public', file), (err, data) => {
+    const send = (err, data) => {
+      if (err && file.startsWith('sfx/') && !send.retried) { // ako su zvuci upload-ovani u public/sfx/sfx/
+        send.retried = true; return fs.readFile(path.join(__dirname, 'public', 'sfx', file), send); }
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': type, 'Cache-Control': url === '/sw.js' ? 'no-cache' : 'public, max-age=86400' });
       res.end(data);
-    });
+    };
+    fs.readFile(path.join(__dirname, 'public', file), send);
   } else if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok');
   } else {
