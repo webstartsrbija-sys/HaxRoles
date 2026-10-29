@@ -202,6 +202,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
           <label>Vreme<select id="selWx"><option value="rand">Nasumično</option><option value="clear">Vedro</option><option value="rain">Kiša · lopta klizi, klizavo</option><option value="snow">Sneg · lopta staje, sporije</option><option value="heat">Žega · kondicija brže pada</option></select></label>
         </div>
         <div class="row">
+          <label>Težina botova<select id="selDiff"><option value="easy">Lako</option><option value="normal">Normalno</option><option value="hard">Teško</option></select></label>
           <label>Teren<select id="selWalls"><option value="walls">Zidovi</option><option value="aut">Aut i korneri</option></select></label>
           <label>Zvuk<button id="btnSound2">Zvuk: uključen</button></label>
           <label>Grafika<button id="btnFast2">Grafika: lepo</button></label>
@@ -246,6 +247,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
       <div>
         <div class="msec">Taktika</div>
         <div id="mtTac"></div>
+        <label style="display:block;margin:8px 0">Težina protivnika<select id="mtDiff" style="width:100%"><option value="easy">Lako</option><option value="normal">Normalno</option><option value="hard">Teško</option></select></label>
         <button class="go big" id="btnMtPlay">IGRAJ SA SVOJIM TIMOM</button>
         <button id="btnMtBack" style="width:100%">Nazad</button>
         <div class="keys" style="margin-top:10px">U meču: <kbd>Shift</kbd> preuzmi igrača najbližeg lopti · <kbd>1</kbd>–<kbd>4</kbd> brza taktika</div>
@@ -817,6 +819,7 @@ function stats(p){
   if(f.sprint||(f.fbs&&z.ownHalf)){s.spd*=1.3;s.acc*=1.5;}
   if(f.pad){s.spd*=1.25;s.acc*=1.4;}
   if(f.explo)s.acc*=1.5;
+  if(p.ctrl==='bot'&&!p.human){const L=diffOf(p);if(L.spd!==1){s.spd*=L.spd;s.acc*=L.acc;}}
   if(p.fitMul&&p.fitMul!==1){const m=p.fitMul;s.spd*=m;s.acc*=m;s.sht*=m;s.drb*=m;s.str*=m;} // uklapanje uloge i taktike
   if(p.stamina<30){s.spd*=.9;s.acc*=.9;}
   s.spd*=p.aggSlow;
@@ -959,7 +962,8 @@ function canTouch(p){
 function kickBall(p,pow){
   if(!canTouch(p))return;
   if(setPiece&&setPiece.pen&&setPiece.team===p.team)pow*=1+.15*Math.min(1,N/11);
-  const n=norm(ball.x-p.x,ball.y-p.y);
+  let n=norm(ball.x-p.x,ball.y-p.y);
+  if(p.ctrl==='bot'&&!p.human){const e=diffOf(p).noise;if(e){const a=(Math.random()*2-1)*e,c=Math.cos(a),sn=Math.sin(a);n={x:n.x*c-n.y*sn,y:n.x*sn+n.y*c};}}
   {const dr=dirOf(p.team),gx=dr*W/2;p.lastKickF=frame;p.lastShot=false;if(n.x*dr>.2){const ty=ball.y+n.y*(gx-ball.x)/n.x;p.lastShot=Math.abs(ty)<G*.75&&Math.abs(gx-ball.x)<W*.5;}}
   ball.vx+=n.x*pow*ball.im;ball.vy+=n.y*pow*ball.im;KICKING=true;touched(p);KICKING=false;ball.kx=p.x;
   sfx(pow>=7?'power':'kick',(p.human?1:.45)*Math.min(1,pow/6.2));
@@ -1099,7 +1103,7 @@ function attack(p,inp,forceClear){
     rel(Math.max(.1,Math.min(.95,dist/(W*.45))),inReach&&aligned>(p.ai.cp?.82:.86));}
 }
 function botSkill(p,inp){
-  if(p.cd>0||Math.random()>.08)return;
+  if(p.cd>0||Math.random()>.08*diffOf(p).sk)return;
   const R=ROLES[p.role],z=p.z,near=ballDist(p),oppB=opponents(p).some(q=>ballDist(q)<8);
   const mine=near<10;const on=nearestOppDist(p);let use=false;
   switch(p.role){
@@ -1122,7 +1126,13 @@ function botSkill(p,inp){
   }
   if(use)inp.skill=true;
 }
-function botInput(p,chaser){const inp=botInput0(p,chaser);if(p.kickLock)inp.kick=false;return inp;}
+const DIFFS={easy:{re:9,noise:.13,spd:.93,acc:.88,sk:.35,press:.25},normal:{re:1,noise:0,spd:1,acc:1,sk:1,press:null},hard:{re:1,noise:0,spd:1.03,acc:1.06,sk:1.4,press:.78}};
+let DIFF='normal';try{DIFF=localStorage.getItem('rbDiff')||'normal';}catch(e){}if(!DIFFS[DIFF])DIFF='normal';
+function diffOf(p){if(ONL.mode||TRAIN)return DIFFS.normal;const opp=human?1-human.team:1;return p.team===opp?DIFFS[DIFF]:DIFFS.normal;}
+function setDiff(v){DIFF=DIFFS[v]?v:'normal';try{localStorage.setItem('rbDiff',DIFF);}catch(e){}for(const id of['selDiff','mtDiff']){const el=document.getElementById(id);if(el)el.value=DIFF;}}
+function botInput(p,chaser){const L=diffOf(p);
+  if(L.re>1&&p.ai.li&&p.ai.reF>frame){const o=p.ai.li;return{dx:o.dx,dy:o.dy,kick:o.kick&&!p.kickLock,skill:false};} // sporija reakcija: zadrži prethodnu odluku
+  const inp=botInput0(p,chaser);if(p.kickLock)inp.kick=false;if(L.re>1){p.ai.li={dx:inp.dx,dy:inp.dy,kick:inp.kick};p.ai.reF=frame+L.re;}return inp;}
 function botInput0(p,chaser){
   const inp={dx:0,dy:0,kick:false,skill:false};
   if(TRAIN&&p.tSpot){steer(p,p.tSpot,inp,6);return inp;}
@@ -1912,6 +1922,7 @@ function startMatch(){
   N=+$('selN').value;useAut=N>3&&$('selWalls').value==='aut';{const mk=$('selMap').value in MAPS?$('selMap').value:'ulica';setMap(mk,rollWeather(mk,$('selTod').value,$('selWx').value));}goFull();
   if(MYTEAM)N=MT.N;
   setupField();if(MYTEAM)buildMyTeam();else{buildTeams(N,$('selRole').value);TAC=[{...TAC_DEF},{...TAC_DEF}];TACX=[effTac(0),effTac(1)];applyFits();}
+  if(!TRAIN&&DIFFS[DIFF].press!==null){const o=human?1-human.team:1;TAC[o]={...TAC[o],press:MYTEAM?Math.max(0,Math.min(1,TAC[o].press*(DIFF==='easy'?.5:1.25))):DIFFS[DIFF].press};TACX[o]=effTac(o);}
   [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;SO=null;PRB=null;paused=false;lastTouch=-1;pauseFr=0;ending=null;endFr=0;MS={poss:[0,0],shots:[0,0],off:[0,0]};tipsReset();MENT=[TAC[0].ment*.6,TAC[1].ment*.6];flip=1;half=1;halfPending=false;endKind='end';
   kickoff(0);state='play';startIntro();
   $('menu').classList.add('hidden');$('myteam').classList.add('hidden');for(const id of['btnSwitch','btnTac'])$(id).classList.toggle('hidden',!MYTEAM);$('endScreen').classList.add('hidden');$('hudTop').classList.remove('hidden');$('hudBot').classList.remove('hidden');
@@ -1965,6 +1976,7 @@ function endMatch(su){
 }
 $('btnStart').onclick=()=>{endTraining();ONL.mode=null;MYTEAM=false;MTO=null;startMatch();};
 $('btnTrain').onclick=()=>startTraining();
+setDiff(DIFF);$('selDiff').onchange=e=>setDiff(e.target.value);$('mtDiff').onchange=e=>setDiff(e.target.value);
 $('btnMyTeam').onclick=mtOpen;$('btnMtBack').onclick=()=>{$('myteam').classList.add('hidden');showMenu();};
 $('btnMtPlay').onclick=()=>{endTraining();MT.name=$('mtName').value.trim();mtSave();ONL.mode=null;MYTEAM=true;startMatch();};
 $('mtName').oninput=()=>{MT.name=$('mtName').value.trim();mtSave();};
