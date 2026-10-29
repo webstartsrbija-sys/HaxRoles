@@ -28,6 +28,9 @@ body.touch #hudBot{display:none!important}
 .bar{width:90px;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px}
 .bar i{display:block;height:100%;background:var(--accent)}
 #hint{color:var(--muted)}
+#btnChat{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));width:44px;height:34px;border-radius:10px;border:1px solid var(--line);background:rgba(11,13,23,.85);color:#fff;font-family:'Russo One',sans-serif;font-size:10px;padding:0;min-height:0;cursor:pointer;z-index:6}
+#chatRow{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));right:calc(62px + env(safe-area-inset-right,0px));display:flex;gap:6px;z-index:6}
+#chatRow button{min-height:0;padding:7px 11px;border-radius:10px;border:1px solid var(--line);background:rgba(11,13,23,.9);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
 #btnPause{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:rgba(11,13,23,.85);display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;padding:0}
 #btnPause i{width:5px;height:16px;background:var(--text);border-radius:2px}
 #touchUI{position:fixed;inset:0;pointer-events:none}
@@ -153,6 +156,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   <span id="hint">Q dodaj! · P pauza · Esc meni</span>
 </div>
 <button id="btnPause" class="hidden" aria-label="Pauza i meni"><i></i><i></i></button>
+<button id="btnChat" class="hidden" aria-label="Brzi chat">ČET</button><div id="chatRow" class="hidden"></div>
 <div id="touchUI" class="hidden">
   <div id="joyBase"><div id="joyKnob"></div></div>
   <div id="joyGhost">prst na levu<br>stranu ekrana</div>
@@ -240,7 +244,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 
 <div class="overlay hidden" id="lobby">
   <div class="card">
-    <h2>Soba <span id="lbCode"></span> <button id="btnCopy">Kopiraj kod</button></h2>
+    <h2>Soba <span id="lbCode"></span> <button id="btnCopy">Pošalji link</button></h2>
     <p class="sub" id="lbSub">Pošalji kod prijateljima. Prazna mesta popunjavaju botovi.</p>
     <div class="row">
       <label id="lbTeamL">Tvoj tim<select id="lbTeam"><option value="0">Roze</option><option value="1">Cijan</option></select></label>
@@ -719,6 +723,7 @@ addEventListener('keydown',e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
   if(e.code==='KeyE'&&!e.repeat)skillPress=true;
   if(e.code==='KeyQ'&&!e.repeat)callPress=true;
+  {const qi=['Digit7','Digit8','Digit9','Digit0'].indexOf(e.code);if(qi>=0&&!e.repeat)sendQC(qi);}
   if((e.code==='KeyF'||e.code==='KeyZ')&&!e.repeat)passPress=true;
   if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)switchPlayer();
   if(MYTEAM&&state==='play'&&!e.repeat&&/^Digit[1-4]$/.test(e.code))setQuickTac(+e.code.slice(5)-1);
@@ -1667,6 +1672,7 @@ function drawPlayers(){
     ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);
     ctx.lineWidth=p.kickHeld?3.5:2;ctx.strokeStyle=p.kickHeld?(p.charge>=1&&p.role==='DEEP'?'#4cc38a':'#ffffff'):'rgba(0,0,0,.45)';ctx.stroke();
     ctx.fillStyle=TEAMTXT[p.team];ctx.font='11px "Russo One",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(R.tag,p.x,p.y+.5);
+    if(p.qc!==undefined&&performance.now()<p.qcU){const t=QC[p.qc];ctx.save();ctx.font='700 13px Rubik,system-ui,sans-serif';const tw=ctx.measureText(t).width,by=p.y-p.r-(p.name&&!p.human?46:30);ctx.fillStyle='rgba(255,255,255,.95)';rr(p.x-tw/2-8,by-11,tw+16,22,8);ctx.fill();ctx.beginPath();ctx.moveTo(p.x-5,by+11);ctx.lineTo(p.x+5,by+11);ctx.lineTo(p.x,by+17);ctx.fill();ctx.fillStyle='#0b0d17';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,p.x,by+.5);ctx.restore();}
     if(p.name&&!p.human){ctx.font='600 11px Rubik,system-ui,sans-serif';const tw=ctx.measureText(p.name).width;
       ctx.fillStyle='rgba(11,13,23,.7)';rr(p.x-tw/2-5,p.y-p.r-24,tw+10,15,5);ctx.fill();ctx.fillStyle='#ffffff';ctx.fillText(p.name,p.x,p.y-p.r-16);}
     if(p===human&&offRule()&&state==='play'&&!kickoffLock&&!setPiece&&isOff(p)){ctx.font='700 12px Rubik,system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle='rgba(11,13,23,.75)';rr(p.x+p.r+3,p.y-8,32,16,5);ctx.fill();ctx.fillStyle='#ff5a5a';ctx.fillText('OFS',p.x+p.r+7,p.y+.5);ctx.textAlign='center';}
@@ -1932,6 +1938,10 @@ const ONLINE_OK=LAN||!!window.RB_SERVER;
 function mkPeer(id){if(LAN)return new LanPeer(id);if(!ONLINE_OK)return null;return new WsPeer(id);}
 const ERRS={'peer-unavailable':'Soba sa tim kodom ne postoji.','unavailable-id':'Kod je zauzet, probaj ponovo.','server':'Veza sa serverom je prekinuta. Ako je server bio neaktivan, budi se do minut: sačekaj pa probaj ponovo.'};
 
+const QC=['Bravo!','Ajmo!','Izvini!','GG'];
+function qcShow(p,i){if(!p||!(i>=0&&i<QC.length))return;const now=performance.now();if(p.qcU&&now<p.qcU-1000)return;p.qc=i;p.qcU=now+2500;playSfx('beep',.4);}
+function sendQC(i){if(state!=='play')return;$('chatRow').classList.add('hidden');if(ONL.mode==='client'){try{ONL.hostConn.send({t:'qc',i});}catch(e){}return;}qcShow(human,i);}
+function myTok(){let t='';try{t=localStorage.getItem('rbTok')||'';}catch(e){}if(!t){t=Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,6);try{localStorage.setItem('rbTok',t);}catch(e){}}return t;}
 const ONL={mode:null,peer:null,conns:{},hostConn:null,myId:null,code:'',lobby:[],cfg:{N:3,walls:'walls'},inputs:{},lastSend:0,lastInp:'',sk:0,recvAt:0};
 function netStatus(t,err){const el=$('netStatus');el.textContent=t;el.classList.toggle('err',!!err);}
 function myName(){return ($('inName').value.trim()||'Igrač').slice(0,12);}
@@ -1952,8 +1962,8 @@ function hostRoom(){
   });
   peer.on('error',e=>{if(e.type==='unavailable-id'){peer.destroy();hostRoom();}else{const was=ONL.mode;if(was)leaveRoom(true);netStatus(ERRS[e.type]||('Greška: '+(e.type||e)),true);}});
 }
-function joinRoom(){
-  const code=$('inCode').value.trim().toUpperCase();
+function joinRoom(rc){
+  const code=(rc||$('inCode').value).trim().toUpperCase();ONL.leaving=false;
   if(code.length<5){netStatus('Upiši kod sobe od 5 znakova.',true);return;}
   const peer=mkPeer();
   if(!peer){netStatus('Online igra radi kad je otvoriš preko linka servera, ne kao fajl sa računara.',true);return;}
@@ -1965,13 +1975,22 @@ function joinRoom(){
     netStatus('Korak 2/2: soba nađena, povezujem se sa domaćinom...');
     const c=peer.connect('hxr-'+code,{reliable:true,serialization:'json'});ONL.hostConn=c;
     const t2=setTimeout(()=>{if(state!=='lobby'&&state!=='play')netStatus('Domaćin se ne javlja. Proveri da li je soba još otvorena i da li je kod tačan.',true);},15000);
-    c.on('open',()=>{clearTimeout(t2);c.send({t:'join',name:myName(),role:$('selRole').value,vote:$('selMap').value,mt:mtSnap()});showLobby();});
+    c.on('open',()=>{clearTimeout(t2);ONL.rc=0;setRoomUrl(code);c.send({t:'join',name:myName(),role:$('selRole').value,vote:$('selMap').value,mt:mtSnap(),tok:myTok()});if(!(rc&&state==='play'))showLobby();else{msg='Ponovo povezan!';msgFr=90;}});
     c.on('data',clientRecv);
-    c.on('close',()=>{const was=ONL.mode;leaveRoom(true);if(was)netStatus('Veza sa domaćinom je prekinuta.',true);});
+    c.on('close',()=>{if(ONL.peer===peer)lostConn(code,'Veza sa domaćinom je prekinuta.');});
   });
-  peer.on('error',e=>{leaveRoom(true);netStatus(ERRS[e.type]||('Greška: '+(e.type||e)),true);});
+  peer.on('error',e=>{if(ONL.peer===peer)lostConn(code,ERRS[e.type]||('Greška: '+(e.type||e)));});
 }
-function leaveRoom(silent){
+function lostConn(code,why){ // klijent: pokušaj ponovo da uđe (do ~45 s), pa tek onda odustani
+  if(ONL.leaving||ONL.mode!=='client'){return;}const was=state;
+  if(was!=='play'&&was!=='lobby'&&was!=='over'){leaveRoom(true);netStatus(why,true);return;}
+  ONL.rc=(ONL.rc||0)+1;if(ONL.rc>15){leaveRoom(true);netStatus(why+' Nije uspelo ponovno povezivanje.',true);return;}
+  try{ONL.peer&&ONL.peer.destroy();}catch(e){}ONL.peer=null;ONL.hostConn=null;
+  msg='Veza prekinuta · povezujem se ponovo ('+ONL.rc+')...';msgFr=200;if(was!=='play')netStatus('Veza prekinuta, povezujem se ponovo...');
+  setTimeout(()=>{if(!ONL.leaving&&ONL.mode==='client'&&!ONL.peer)joinRoom(code);},2500);}
+function roomLink(){return location.origin+location.pathname+'?room='+ONL.code;}
+function setRoomUrl(c){try{history.replaceState(null,'',c?location.pathname+'?room='+c:location.pathname);}catch(e){}}
+function leaveRoom(silent){ONL.leaving=true;setRoomUrl(null);
   if(ONL.mode==='host')netBroadcast({t:'bye'});
   try{ONL.peer&&ONL.peer.destroy();}catch(e){}
   ONL.mode=null;ONL.peer=null;ONL.conns={};ONL.hostConn=null;
@@ -1979,20 +1998,30 @@ function leaveRoom(silent){
   state='menu';showMenu();if(!silent)netStatus('Izašao si iz sobe.');
 }
 function hostRecv(id,d){
-  if(d.t==='join'){if(!ONL.lobby.find(x=>x.id===id)){const t0=ONL.lobby.filter(x=>x.team===0).length,t1=ONL.lobby.filter(x=>x.team===1).length;
-      ONL.lobby.push({id,name:String(d.name||'Igrač').slice(0,12),team:t0<=t1?0:1,role:ROLES[d.role]?d.role:'B2B',vote:MAPS[d.vote]?d.vote:'ulica',mt:d.mt&&typeof d.mt==='object'?d.mt:null});}
+  if(d.t==='join'){const tok=String(d.tok||'').slice(0,32),old=tok&&ONL.lobby.find(x=>x.tok===tok&&x.id!==id);
+    if(old){const oid=old.id;old.id=id;old.away=false;delete ONL.inputs[oid];if(d.mt&&typeof d.mt==='object'&&state!=='play')old.mt=d.mt;
+      if(state==='play'){const p=players.find(q=>q.awayTok===tok)||players.find(q=>q.owner===oid);
+        if(p){p.owner=id;p.ctrl='remote';p.isHuman=true;p.awayTok=null;p.lastSk=undefined;p.lastCp=undefined;p.lastPp=undefined;com(old.name+' se vratio u meč!',true);}
+        const c=ONL.conns[id];c&&c.send({t:'start',cfg:ONL.curCfg,roster:curRoster(),resume:true});}
+      broadcastLobby();renderLobby();return;}
+    if(!ONL.lobby.find(x=>x.id===id)){const t0=ONL.lobby.filter(x=>x.team===0).length,t1=ONL.lobby.filter(x=>x.team===1).length;
+      ONL.lobby.push({id,name:String(d.name||'Igrač').slice(0,12),team:t0<=t1?0:1,role:ROLES[d.role]?d.role:'B2B',vote:MAPS[d.vote]?d.vote:'ulica',mt:d.mt&&typeof d.mt==='object'?d.mt:null,tok});}
     broadcastLobby();renderLobby();
-    if(state==='play'||state==='over'){const c=ONL.conns[id];c&&c.send({t:'info',m:'Meč je u toku, ući ćeš u sledeći.'});}}
+    if(state==='play'){const c=ONL.conns[id];c&&c.send({t:'start',cfg:ONL.curCfg,roster:curRoster(),resume:true,spec:true});}
+    else if(state==='over'){const c=ONL.conns[id];c&&c.send({t:'info',m:'Meč je u toku, ući ćeš u sledeći.'});}}
   else if(d.t==='pick'){const e=ONL.lobby.find(x=>x.id===id);if(e){if(d.team===0||d.team===1)e.team=d.team;if(ROLES[d.role])e.role=d.role;if(MAPS[d.vote])e.vote=d.vote;}broadcastLobby();renderLobby();}
+  else if(d.t==='qc'){if(state==='play')qcShow(players.find(q=>q.owner===id&&q.ctrl==='remote'),d.i|0);}
   else if(d.t==='sw'){if(MYTEAM&&state==='play'&&introFr<=0)doSwitch(players.find(q=>q.owner===id&&q.ctrl==='remote'));}
   else if(d.t==='qt'){const q=players.find(q=>q.owner===id&&q.ctrl==='remote');if(MYTEAM&&q&&state==='play')setQuickTac(+d.i||0,q.team);}
   else if(d.t==='in'){ONL.inputs[id]={dx:d.i[0],dy:d.i[1],kick:!!d.i[2],sk:d.i[3],cp:d.i[4]||0,pp:d.i[5]||0};}
 }
-function dropClient(id){delete ONL.conns[id];delete ONL.inputs[id];ONL.lobby=ONL.lobby.filter(x=>x.id!==id);
-  for(const p of players)if(p.owner===id){p.ctrl='bot';p.isHuman=false;}
+function dropClient(id){delete ONL.conns[id];delete ONL.inputs[id];const e=ONL.lobby.find(x=>x.id===id);
+  if(state==='play'&&e&&e.tok){e.away=true;let had=false;for(const p of players)if(p.owner===id&&p.ctrl==='remote'){p.awayTok=e.tok;p.ctrl='bot';p.owner=null;p.isHuman=false;had=true;}
+    if(had)com(e.name+' je izgubio vezu, bot igra umesto njega',true);}
+  else{ONL.lobby=ONL.lobby.filter(x=>x.id!==id);for(const p of players)if(p.owner===id){p.ctrl='bot';p.isHuman=false;}}
   broadcastLobby();renderLobby();}
 function broadcastLobby(){netBroadcast({t:'lobby',list:ONL.lobby,cfg:ONL.cfg});}
-function remoteInput(p){const r=ONL.inputs[p.owner]||{dx:0,dy:0,kick:false,sk:p.lastSk,cp:p.lastCp};const skill=r.sk!==p.lastSk;p.lastSk=r.sk;
+function remoteInput(p){const r=ONL.inputs[p.owner]||{dx:0,dy:0,kick:false,sk:p.lastSk,cp:p.lastCp};const skill=p.lastSk!==undefined&&r.sk!==p.lastSk;p.lastSk=r.sk;
   const call=p.lastCp!==undefined&&r.cp!==p.lastCp;p.lastCp=r.cp||0;
   const pass=p.lastPp!==undefined&&(r.pp||0)!==p.lastPp;p.lastPp=r.pp||0;return{dx:r.dx,dy:r.dy,kick:r.kick,skill,call,pass};}
 
@@ -2029,16 +2058,18 @@ function buildFromRoster(roster){
   }
   human=players.find(p=>p.human)||null;
 }
+function curRoster(){return players.map(p=>({team:p.team,role:p.role,owner:p.ctrl!=='bot'&&p.owner?p.owner:null,name:p.name||p.botName||'',slot:p.slot,fA:p.fA,fD:p.fD}));}
 function startOnline(){ // samo domaćin
+  ONL.lobby=ONL.lobby.filter(x=>!x.away);
   const cfg={N:ONL.cfg.N,aut:ONL.cfg.N>3&&ONL.cfg.walls==='aut',map:voteWinner()};cfg.wx=rollWeather(cfg.map,ONL.cfg.tod,ONL.cfg.wx);
   cfg.mode=ONL.cfg.mode||'classic';let roster;
   if(cfg.mode==='myteam'){const h=ONL.lobby.find(x=>x.id==='host');if(h)h.mt=mtSnap();const b=buildRosterMT(cfg.N,ONL.lobby);roster=b.roster;cfg.mt=b.meta;}else roster=buildRoster(cfg.N,ONL.lobby);
-  beginMatch(cfg,roster);
+  ONL.curCfg=cfg;beginMatch(cfg,roster);
   netBroadcast({t:'start',cfg,roster});
 }
 function voteWinner(){const c={};for(const x of ONL.lobby)c[x.vote||'ulica']=(c[x.vote||'ulica']||0)+1;const hv=(ONL.lobby.find(x=>x.id==='host')||{}).vote; // nerešeno: odlučuje glas domaćina
   let best='ulica',bv=-1;for(const k of MAP_ORDER){const v=(c[k]||0)+(k===hv?.5:0);if(v>bv){bv=v;best=k;}}return best;}
-function beginMatch(cfg,roster){
+function beginMatch(cfg,roster,resume){
   N=cfg.N;useAut=cfg.aut;setMap(cfg.map in MAPS?cfg.map:'ulica',cfg.wx);setupField();
   MYTEAM=cfg.mode==='myteam'&&!!cfg.mt;MTO=MYTEAM?cfg.mt:null;buildFromRoster(roster);
   if(MYTEAM){TAC=[{...TAC_DEF,...cfg.mt.tac[0]},{...TAC_DEF,...cfg.mt.tac[1]}];TSAV=[{...TAC[0]},{...TAC[1]}];TIDX=[0,0];TAC.coach=cfg.mt.coach[1]||'';}
@@ -2046,25 +2077,26 @@ function beginMatch(cfg,roster){
   LOSTF=[-1e9,-1e9];TACX=[effTac(0),effTac(1)];applyFits();if(MYTEAM)shapeStep(true);
   for(const id of['btnSwitch','btnTac'])$(id).classList.toggle('hidden',!MYTEAM);
   [timeLimit,goalLimit]=matchFor(N);timeLimit*=60;score=[0,0];frame=0;golden=false;SO=null;PRB=null;paused=false;lastTouch=-1;pauseFr=0;ending=null;endFr=0;MS={poss:[0,0],shots:[0,0],off:[0,0]};tipsReset();MENT=[0,0];flip=1;half=1;halfPending=false;endKind='end';
-  kickoff(0);state='play';startIntro();
+  kickoff(0);state='play';if(resume){introFr=0;cdFr=0;}else startIntro();
   for(const id of['menu','lobby','endScreen'])$(id).classList.add('hidden');
   $('hudTop').classList.remove('hidden');$('hudBot').classList.remove('hidden');
   $('hint').textContent='F/Z pas · Q traži loptu · '+(MYTEAM?'Shift igrač · 1-4 taktika · ':'')+(ONL.mode==='client'?'Esc izlaz iz sobe':ONL.mode==='host'?'P pauza · Esc zatvara sobu':'P pauza · Esc meni');
-  updateHud();flash(MAP.name+' · '+N+' v '+N+' · '+wxText());setTimeout(()=>fanSlot('walkout',.9),150);if(WX.heat)setTimeout(()=>com('Žega! Čuvajte kondiciju',true),2600);
+  updateHud();if(resume){syncPlayUI&&syncPlayUI();return;}flash(MAP.name+' · '+N+' v '+N+' · '+wxText());setTimeout(()=>fanSlot('walkout',.9),150);if(WX.heat)setTimeout(()=>com('Žega! Čuvajte kondiciju',true),2600);
 }
 function backToLobby(){state='lobby';$('hudTop').classList.add('hidden');$('hudBot').classList.add('hidden');showLobby();if(ONL.mode==='host')netBroadcast({t:'tolobby'});}
 
 // stanje meča: domaćin šalje 30 puta u sekundi
 const r2=v=>Math.round(v*100)/100;
 function fxOut(fx){const o={};for(const k in fx)if(fx[k]>0)o[k]=fx[k];return o;}
-function snap(){const cl=[],so=SO?[SO.k[0],SO.k[1],SO.win===undefined?-1:SO.win]:0;players.forEach((p,i)=>{if(p.ctrl!=='bot'&&p.owner)cl.push([i,p.owner]);});return{t:'s',cl,so,cd:cdFr,in:introFr,ev:EVQ.splice(0),gi:pauseFr>0?goalInfo:null,f:frame,sc:score,g:golden?1:0,k:kickoffLock?1:0,kt:kickoffTeam,sp:setPiece?[setPiece.x,setPiece.y,setPiece.team,setPiece.pen?1:0,setPiece.kk?players.indexOf(setPiece.kk):-1]:0,fl:flip,hd:[hold.team,hold.fr],ko:koFr,spt:setPiece?setPiece.t:0,pd:PADS.length?PADS.map(q=>q.cd):0,pp:penPick?[players.indexOf(penPick.cap),players.indexOf(setPiece&&setPiece.kk),penPick.fr]:0,
+function snap(){const qn=performance.now(),qc=[];players.forEach((p,i)=>{if(p.qc!==undefined&&qn<p.qcU)qc.push([i,p.qc,Math.round(p.qcU-qn)]);});const cl=[],so=SO?[SO.k[0],SO.k[1],SO.win===undefined?-1:SO.win]:0;players.forEach((p,i)=>{if(p.ctrl!=='bot'&&p.owner)cl.push([i,p.owner]);});return{t:'s',cl,so,qc,cd:cdFr,in:introFr,ev:EVQ.splice(0),gi:pauseFr>0?goalInfo:null,f:frame,sc:score,g:golden?1:0,k:kickoffLock?1:0,kt:kickoffTeam,sp:setPiece?[setPiece.x,setPiece.y,setPiece.team,setPiece.pen?1:0,setPiece.kk?players.indexOf(setPiece.kk):-1]:0,fl:flip,hd:[hold.team,hold.fr],ko:koFr,spt:setPiece?setPiece.t:0,pd:PADS.length?PADS.map(q=>q.cd):0,pp:penPick?[players.indexOf(penPick.cap),players.indexOf(setPiece&&setPiece.kk),penPick.fr]:0,
   m:msgFr>0?msg:'',mf:msgFr,pf:pauseFr,pa:paused?1:0,b:[r2(ball.x),r2(ball.y),r2(ball.vx),r2(ball.vy)],
   p:players.map(p=>[r2(p.x),r2(p.y),r2(p.vx),r2(p.vy),r2(p.r),Math.round(p.stamina),r2(p.charge),p.charging?1:0,p.kickHeld?1:0,p.cd,r2(p.mom),r2(p.build),fxOut(p.fx),p.aimG===undefined?null:r2(p.aimG),p.glueT?players.indexOf(p.glueT):-1,p.dribbling?1:0])};}
 function clientRecv(d){
   if(d.t==='lobby'){ONL.lobby=d.list;ONL.cfg=d.cfg;if(state!=='play')renderLobby();}
-  else if(d.t==='start'){beginMatch(d.cfg,d.roster);}
+  else if(d.t==='start'){beginMatch(d.cfg,d.roster,!!d.resume);if(d.spec){msg='Meč je u toku, gledaš do sledećeg';msgFr=200;}}
   else if(d.t==='s'&&state==='play'){
     frame=d.f;cdFr=d.cd||0;introFr=d.in||0;score=d.sc;golden=!!d.g;kickoffLock=!!d.k;kickoffTeam=d.kt;setPiece=d.sp?{x:d.sp[0],y:d.sp[1],team:d.sp[2],pen:!!d.sp[3],kk:d.sp[4]>=0?players[d.sp[4]]:null}:null;flip=d.fl||1;if(d.hd)hold={team:d.hd[0],fr:d.hd[1]};koFr=d.ko||0;if(setPiece)setPiece.t=d.spt||0;if(d.pd)d.pd.forEach((c,i)=>{if(PADS[i])PADS[i].cd=c;});penPick=d.pp?{cap:players[d.pp[0]],kk:players[d.pp[1]],fr:d.pp[2]}:null;
+    if(d.qc){const qn=performance.now();for(const [i,q,r] of d.qc){const p=players[i];if(p&&(p.qc!==q||!(qn<p.qcU))){if(!(qn<p.qcU))playSfx('beep',.4);p.qc=q;}if(p)p.qcU=qn+r;}}
     SO=d.so?{k:[d.so[0],d.so[1]],win:d.so[2]>=0?d.so[2]:undefined}:null;
     if(d.cl){for(const p of players){p.owner=null;p.human=false;p.isHuman=false;}for(const [i,o] of d.cl){const p=players[i];if(p){p.owner=o;p.isHuman=true;p.human=o===ONL.myId;}}human=players.find(p=>p.human)||null;}
     msg=d.m||msg;msgFr=d.mf;pauseFr=d.pf;paused=!!d.pa;goalInfo=d.gi||null;
@@ -2094,7 +2126,7 @@ function clientSendInput(now){
 // lobby
 function showLobby(){state='lobby';$('menu').classList.add('hidden');$('lobby').classList.remove('hidden');$('lbCode').textContent=ONL.code;
   const host=ONL.mode==='host';$('hostOpts').classList.toggle('hidden',!host);$('btnLbStart').classList.toggle('hidden',!host);$('cfgText').classList.toggle('hidden',host);
-  $('lbSub').textContent=host?'Pošalji kod prijateljima. Prazna mesta popunjavaju botovi.':'Čekaš da domaćin pokrene meč.';
+  $('lbSub').textContent=host?'Pošalji link ili kod prijateljima. Prazna mesta popunjavaju botovi.':'Čekaš da domaćin pokrene meč.';
   $('lbN').value=ONL.cfg.N;$('lbMode').value=ONL.cfg.mode||'classic';$('lbWalls').value=ONL.cfg.walls;$('lbTod').value=ONL.cfg.tod||'rand';$('lbWx').value=ONL.cfg.wx||'rand';
   const me=ONL.lobby.find(x=>x.id===ONL.myId);if(me){$('lbTeam').value=me.team;$('lbRole').value=me.role;$('lbMap').value=me.vote||'ulica';}
   renderLobby();}
@@ -2109,7 +2141,7 @@ function renderLobby(){
     $('voteInfo').textContent='Vodi: '+MAPS[voteWinner()].name;$('lbList').innerHTML=h;
     $('lbInfo').textContent=cl?'Svako igra svojim MyTeam timom (formacija, uloge, taktika). Tim se menja u MyTeam meniju pre ulaska u sobu.':'Čeka se protivnički trener. Bez njega igraš protiv AI trenera.';return;}
   let h='<tr><th>Igrač</th><th>Tim</th><th>Uloga</th><th>Glas za mapu</th></tr>';
-  for(const x of ONL.lobby)h+='<tr><td>'+esc(x.name)+(x.id==='host'?' (domaćin)':'')+(x.id===ONL.myId?' · ti':'')+'</td><td class="'+(x.team?'tb':'tr')+'">'+(x.team?'Cijan':'Roze')+'</td><td>'+ROLES[x.role].name+'</td><td>'+MAPS[x.vote||'ulica'].name+'</td></tr>';
+  for(const x of ONL.lobby)h+='<tr><td>'+esc(x.name)+(x.id==='host'?' (domaćin)':'')+(x.id===ONL.myId?' · ti':'')+(x.away?' · van veze':'')+'</td><td class="'+(x.team?'tb':'tr')+'">'+(x.team?'Cijan':'Roze')+'</td><td>'+ROLES[x.role].name+'</td><td>'+MAPS[x.vote||'ulica'].name+'</td></tr>';
   $('voteInfo').textContent='Vodi: '+MAPS[voteWinner()].name;
   $('lbList').innerHTML=h;
   const c0=ONL.lobby.filter(x=>x.team===0).length,c1=ONL.lobby.filter(x=>x.team===1).length;
@@ -2125,8 +2157,10 @@ function sendPick(){const team=+$('lbTeam').value,role=$('lbRole').value,vote=$(
   $('lbTeam').onchange=sendPick;$('lbRole').onchange=sendPick;$('lbMap').onchange=sendPick;
   $('lbN').onchange=$('lbWalls').onchange=$('lbTod').onchange=$('lbWx').onchange=$('lbMode').onchange=e=>{if(e&&e.target&&e.target.id==='lbMode'&&$('lbMode').value==='myteam'){const h=ONL.lobby.find(x=>x.id==='host');if(h){h.mt=mtSnap();$('lbN').value=h.mt.N;}}
     ONL.cfg={N:+$('lbN').value,walls:$('lbWalls').value,tod:$('lbTod').value,wx:$('lbWx').value,mode:$('lbMode').value};broadcastLobby();renderLobby();};
-  $('btnHost').onclick=hostRoom;$('btnJoin').onclick=joinRoom;$('btnLbLeave').onclick=()=>leaveRoom();$('btnLbStart').onclick=()=>{goFull();startOnline();};
-  $('btnCopy').onclick=()=>{const t=ONL.code;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{$('btnCopy').textContent='Kopirano';setTimeout(()=>$('btnCopy').textContent='Kopiraj kod',1500);}).catch(()=>{});};
+  $('btnHost').onclick=hostRoom;$('btnJoin').onclick=()=>joinRoom();
+  {let rp=null;try{rp=new URLSearchParams(location.search).get('room');}catch(e){}if(rp&&/^[A-Za-z0-9]{5}$/.test(rp)){$('inCode').value=rp.toUpperCase();if(ONLINE_OK)setTimeout(()=>{if(!ONL.mode)joinRoom();},500);}}$('btnLbLeave').onclick=()=>leaveRoom();$('btnLbStart').onclick=()=>{goFull();startOnline();};
+  $('btnCopy').onclick=()=>{const t=roomLink();if(navigator.share&&TOUCH){navigator.share({title:'RoleBall',text:'Uđi u moju sobu u RoleBall-u',url:t}).catch(()=>{});return;}
+    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{$('btnCopy').textContent='Link kopiran';setTimeout(()=>$('btnCopy').textContent='Pošalji link',1500);}).catch(()=>{prompt('Link za sobu:',t);});};
   try{const n=localStorage.getItem('rbName');if(n)$('inName').value=n;}catch(e){}
   $('inName').onchange=()=>{try{localStorage.setItem('rbName',$('inName').value);}catch(e){}};
   if(!ONLINE_OK)$('onlineBox').classList.add('hidden');
@@ -2160,6 +2194,9 @@ function goFull(){if(!TOUCH)return;try{const d=document.documentElement;const r=
   {const bp=$('btnPass');bp.addEventListener('pointerdown',e=>{passPress=true;bp.classList.add('on');e.preventDefault();});for(const ev of['pointerup','pointercancel','pointerleave'])bp.addEventListener(ev,()=>bp.classList.remove('on'));bp.addEventListener('contextmenu',e=>e.preventDefault());}
   $('btnSwitch').addEventListener('pointerdown',e=>{switchPlayer();e.preventDefault();});$('btnTac').addEventListener('pointerdown',e=>{setQuickTac(((TIDX[human?human.team:0]||0)+1)%4);e.preventDefault();});$('btnCall').addEventListener('contextmenu',e=>e.preventDefault());
   for(const b of[bk,$('btnSkill')])b.addEventListener('contextmenu',e=>e.preventDefault());
+  $('chatRow').innerHTML=QC.map((t,i)=>'<button data-i="'+i+'">'+t+'</button>').join('');
+  for(const b of $('chatRow').querySelectorAll('button'))b.onclick=e=>{e.stopPropagation();sendQC(+b.dataset.i);};
+  $('btnChat').onclick=e=>{e.stopPropagation();$('chatRow').classList.toggle('hidden');};
   $('btnPause').onclick=()=>{if(ONL.mode!=='client')paused=true;$('pauseMenu').classList.remove('hidden');};
   $('btnResume').onclick=()=>{paused=false;$('pauseMenu').classList.add('hidden');};
   $('btnQuit').onclick=()=>{paused=false;$('pauseMenu').classList.add('hidden');if(ONL.mode)leaveRoom();else showMenu();};
@@ -2169,7 +2206,7 @@ setTimeout(()=>{for(const id of['btnSound','btnSound2'])$(id).textContent='Zvuk:
 let uiPlaying=null,audioTick=0;
 function syncPlayUI(){const pl=state==='play';if(pl===uiPlaying)return;uiPlaying=pl;
   document.body.classList.toggle('playing',pl);
-  $('touchUI').classList.toggle('hidden',!(pl&&TOUCH));$('btnPause').classList.toggle('hidden',!pl);
+  $('touchUI').classList.toggle('hidden',!(pl&&TOUCH));$('btnPause').classList.toggle('hidden',!pl);$('btnChat').classList.toggle('hidden',!pl);if(!pl)$('chatRow').classList.add('hidden');
   if(!pl){touch.kick=false;touch.dx=touch.dy=0;touch.id=null;$('joyBase').classList.remove('on');$('pauseMenu').classList.add('hidden');}}
 
 
